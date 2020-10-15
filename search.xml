@@ -1,85 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>AFNetworking 3.1.0 第一部分</title>
-    <url>/2016-09-06-AFNetworking-3.1.0-%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86.html</url>
-    <content><![CDATA[<h2 id="写在前面"><a href="#写在前面" class="headerlink" title="写在前面"></a><strong>写在前面</strong></h2><p>我主要根据作者polobymulberry的博客<a href="http://www.cnblogs.com/polobymulberry/category/785705.html">AFNetworking源码阅读系列</a>来学习，因为我有很多知识不懂，所以有些地方可能会记录得过于繁琐。原作者的大体流程和记录不变，某些知识点会有自己的补充。在此非常感谢博客作者polobymulberry的分享。</p>
-<a id="more"></a>
-
-<blockquote>
-<p>第一次运行运行example时总是出现 Module ‘AFNetworking’ not found 问题，查了好多关于Module的资料，对于问题的解决却没有帮助，后来偶然间在AFNetworking的github上的issues里找到解决办法，真是特别惭愧。应该点击文件夹内的<code>AFNetworking.xcworkspace</code>，而不是其他<code>.xcodeproj</code>文件。</p>
-</blockquote>
-<p>图片1</p>
-<p>运行成功后，就开始我们艰难的学习旅程吧！</p>
-<h2 id="开始"><a href="#开始" class="headerlink" title="开始"></a><strong>开始</strong></h2><h3 id="AppDelegate"><a href="#AppDelegate" class="headerlink" title="AppDelegate"></a>AppDelegate</h3><p>此文件主要就是实现函数didFinishLaunchingWithOptions。将windows的rootViewController设置为rootViewController为GlobaltimelineViewController的NavigationController。此处有两点需要注意一下：</p>
-<p>第一处</p>
-<figure class="highlight angelscript"><table><tr><td class="code"><pre><span class="line">NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:<span class="number">4</span> * <span class="number">1024</span> * <span class="number">1024</span> diskCapacity:<span class="number">20</span> * <span class="number">1024</span> * <span class="number">1024</span> diskPath:nil];</span><br><span class="line">[NSURLCache setSharedURLCache:URLCache];</span><br></pre></td></tr></table></figure>
-
-<p>NSURLCache 为您的应用的 URL 请求提供了内存中（对应memoryCapacity）以及磁盘上（对应diskCapacity）的综合缓存机制。所以你想使用NSURLCache带来的好处，就需要在此处设置一个sharedURLCache。</p>
-<p>第二处</p>
-<figure class="highlight scheme"><table><tr><td class="code"><pre><span class="line">[[<span class="name">AFNetworkActivityIndicatorManager</span> sharedManager] setEnabled:YES]<span class="comment">;</span></span><br></pre></td></tr></table></figure>
-
-<p>为了说明AFNetworkingActivityIndicator是什么，直接上图：</p>
-<p>图2</p>
-<p>当你有session task正在运行时，这个小菊花就会转啊转。这个是自动检测的，只需要你设置AFNetworkingActivityIndicatorManager的sharedManager中的enabled设为YES即可。</p>
-<p>这里我简单看了下AFNetworkingActivityIndicatorManager，发现它对外接口不多，比较容易理解它的业务流程。所以我准备在第三部分就将AFNetworkingActivityIndicatorManager的源码拿下。</p>
-<p>设置完了cache和AFNetworkingActivityIndicator，接着就是进入GlobalTimelineViewController（UITableViewController）了。这里我学到一个，就是UITableViewController可以使用initWithStyle进行初始化。（<strong>因为我对iOS界面不太了解，所以这个initWithStyle现在并不懂</strong>）</p>
-<blockquote>
-<p>polobymulberry在开篇画了一个iOS Example的代码结构图，我不太懂MVC，特地查了下。以下是我个人非常粗浅的了解：</p>
-<ul>
-<li><p>M代表Model，V代表View，C代表Cotroller。这是一种设计模式，是想让各模块分离，视图跟数据处理以及中间的控制协调端各司其职。</p>
-</li>
-<li><p>视图只用于展现APP的界面，用于人和程序的交互。至于你点击按钮后产生的反馈，是由Controller来传递给Model处理，比如点击按钮后，会在文本框内展现文字。则Model从数据库中读取文字并通知Controller，事件已经处理完，Controller收到通知然后决定怎么处理，比如通过outlet控制View展示文字。</p>
-</li>
-<li><p>注意View和Model之间并不直接通信。</p>
-<p>图3</p>
-</li>
-</ul>
-<p>参考自<a href="http://blog.csdn.net/nhwslxf123/article/details/49703773">实际案例讲解iOS设计模式——MVC模式</a></p>
-</blockquote>
-<h3 id="GlobalTimelineViewController"><a href="#GlobalTimelineViewController" class="headerlink" title="GlobalTimelineViewController"></a>GlobalTimelineViewController</h3><p>主要是围绕UITableView的delegate和dataSource来说。</p>
-<h5 id="1-UITableViewDelegate"><a href="#1-UITableViewDelegate" class="headerlink" title="1) UITableViewDelegate"></a>1) UITableViewDelegate</h5><p>主要是计算heightForRowAtIndexPath这个函数比较麻烦（应该是<code>-(CGFloat)tableView:heightForRowAtIndexPath:</code>函数），这里的Cell比较简单，可以直接使用posts中存储的text值来计算高度，核心代码就下面这句：</p>
-<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line"><span class="built_in">CGRect</span> rectToFit = [text boundingRectWithSize:<span class="built_in">CGSizeMake</span>(<span class="number">240.0</span>f, <span class="built_in">CGFLOAT_MAX</span>) options:<span class="built_in">NSStringDrawingUsesLineFragmentOrigin</span> attributes:@&#123;<span class="built_in">NSFontAttributeName</span>: [<span class="built_in">UIFont</span> systemFontOfSize:<span class="number">12.0</span>f]&#125; context:<span class="literal">nil</span>];</span><br></pre></td></tr></table></figure>
-
-<p>对于boundingRectWithSize的使用又增进了一步。（<strong>这里我也不懂</strong>）</p>
-<h5 id="2-UITableViewDataSource"><a href="#2-UITableViewDataSource" class="headerlink" title="2) UITableViewDataSource"></a>2) UITableViewDataSource</h5><p>主要是用posts作为数据源，而posts的获取在此处尤为关键，是通过Post本身（model）的globalTimelinePostsWithBlock函数获取数据的，这里作者将网络端的请求放在了model里面。</p>
-<p>接着调用了refreshControl控件的setRefreshingWithStateOfTask:。setRefreshingWithStateOfTask:其实是UIRefreshControl+AFNetworking的一个category中定义的。UIRefreshControl+AFNetworking的源码很简单，放在第四部分讲。</p>
-<p>注意setRefreshingWithStateOfTask:有一个参数就是NSURLSessionTask*。而这个NSURLSessionTask的获取是调用了Post类中的globalTimelinePostsWithBlock:函数。</p>
-<p>在globalTimelinePostsWithBlock:函数中其实封装了一层AFHTTPSessionManager的GET函数</p>
-<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">nullable</span> <span class="built_in">NSURLSessionDataTask</span> *)GET:(<span class="built_in">NSString</span> *)URLString</span><br><span class="line">                            parameters:(<span class="keyword">nullable</span> <span class="keyword">id</span>)parameters</span><br><span class="line">                              progress:(<span class="keyword">nullable</span> <span class="keyword">void</span> (^)(<span class="built_in">NSProgress</span> *downloadProgress)) downloadProgress</span><br><span class="line">                              success:(<span class="keyword">nullable</span> <span class="keyword">void</span> (^)(<span class="built_in">NSURLSessionDataTask</span> *task, <span class="keyword">id</span> _Nullable responseObject))success</span><br><span class="line">                                failure:(<span class="keyword">nullable</span> <span class="keyword">void</span> (^)(<span class="built_in">NSURLSessionDataTask</span> * _Nullable task, <span class="built_in">NSError</span> *error))failure;</span><br></pre></td></tr></table></figure>
-
-<p>具体细节后面讨论，此处我们知道是根据一个url获取到服务器端的数据即可。注意获取到的数据是JSON格式的，这里作者在Post类，即Model中定义了一个JSON—-&gt;Model函数-initWithAttributes，，也就是说模型数据转化部分也放在了model中。</p>
-<p>另外，调用GET方法不是直接用AFHTTPSessionManager的manager，而是又定义了一个AFAppDotNetAPIClient，继承自AFHTTPSessionManager。并在其定义的单例模式中简单地封装了一些AFHTTPSessionManager的设置。</p>
-<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line">+ (<span class="keyword">instancetype</span>)sharedClient &#123;</span><br><span class="line">       <span class="keyword">static</span> AFAppDotNetAPIClient *_sharedClient = <span class="literal">nil</span>;</span><br><span class="line">       <span class="keyword">static</span> <span class="built_in">dispatch_once_t</span> onceToken;</span><br><span class="line">    <span class="built_in">dispatch_once</span>(&amp;onceToken, ^&#123;</span><br><span class="line">        <span class="comment">// 初始化HTTP Client的base url，此处为@&quot;https://api.app.net/&quot;</span></span><br><span class="line">        _sharedClient = [[AFAppDotNetAPIClient alloc] initWithBaseURL:[<span class="built_in">NSURL</span> URLWithString:AFAppDotNetAPIBaseURLString]];</span><br><span class="line">           <span class="comment">// 设置HTTP Client的安全策略为AFSSLPinningModeNone</span></span><br><span class="line">        _sharedClient.securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeNone];</span><br><span class="line">&#125;);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> _sharedClient;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>知识点：SSL Pinning</p>
-<p>Https对比Http已经很安全，但在建立安全链接的过程中，可能遭受中间人攻击。防御这种类型攻击的最直接方式是Client使用者能正确鉴定Server发的证书【目前很多浏览器在这方面做的足够好，用户只要不在遇到警告时还继续其中的危险操作】，而对于Client的开发者而言，一种方式保持一个可信的根证书颁发机构列表，确认可信的证书，警告或阻止不是可信根证书颁发机构颁发的证书。</p>
-<p>SSL Pinning其实就是证书绑定，一般浏览器的做法是信任可信根证书颁发机构颁发的证书，但在移动端【非浏览器的桌面应用亦如此】，应用只和少数的几个Server有交互，所以可以做得更极致点，直接就在应用内保留需要使用的具体Server的证书。对于iOS开发者而言，如果使用AFNetwoking作为网络库，那么要做到这点就很方便，直接证书作为资源打包进去就好，AFNetworking会自动加载，具体代码就不贴了，nsscreencast已经有很好的tutorial。</p>
-<p>至于model根据网络层获取的数据赋值，除了user的头像那块比较难，因为涉及到UIImageView+AFNetworking等文件，其他部分很简单。而AFNetworking的UIImageView+AFNetworking的部分其实很类似SDWebImage的思路。</p>
-<h5 id="Add：BLock作为函数参数"><a href="#Add：BLock作为函数参数" class="headerlink" title="Add：BLock作为函数参数"></a>Add：BLock作为函数参数</h5><p><code>block原本的形式为:</code></p>
-<p><code>返回值 (^block名称 可省) (参数 可省) ＝ ^&#123;函数体&#125;;</code><br><code>调用形式： block名称(参数);</code></p>
-<p>在GlobalTimelineViewController.m <code>- (void)reload:</code> 函数中遇到了第一个block</p>
-<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line"><span class="built_in">NSURLSessionTask</span> *task = [Post globalTimelinePostsWithBlock:^(<span class="built_in">NSArray</span> *posts, <span class="built_in">NSError</span> *error) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!error) &#123;</span><br><span class="line">            <span class="keyword">self</span>.posts = posts;</span><br><span class="line">            [<span class="keyword">self</span>.tableView reloadData];</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;];</span><br></pre></td></tr></table></figure>
-
-<p><code>^(NSArray *posts, NSError *error)&#123;&#125;</code> 整个block作为参数传递给<code>+ (NSURLSessionDataTask *)globalTimelinePostsWithBlock:</code>函数</p>
-<blockquote>
-<p>参数传递只需要 ^(参数){block函数体}</p>
-<p>^表明是block形式</p>
-</blockquote>
-<p>Post.m <code>+ (NSURLSessionDataTask *)globalTimelinePostsWithBlock:</code>函数:</p>
-<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line">+ (<span class="built_in">NSURLSessionDataTask</span> *)globalTimelinePostsWithBlock:(<span class="keyword">void</span> (^)(<span class="built_in">NSArray</span> *posts, <span class="built_in">NSError</span> *error))block &#123;</span><br><span class="line">                 ......</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p>即这个函数的参数为(void (^)(NSArray <em>posts, NSError</em> error))block</p>
-<p>(返回值 (^)(参数))block名称</p>
-</blockquote>
-<p>也就是说在block作为函数参数传递时，定义block的这个A函数(<code>globalTimelinePostsWithBlock:</code>)并没有block函数体，而是调用A函数(<code>[Post globalTimelinePostsWithBlock:]</code>)在传参数时定义block的具体执行内容。</p>
-]]></content>
-      <categories>
-        <category>源码解析</category>
-      </categories>
-  </entry>
-  <entry>
     <title>property 中的常用关键字分析</title>
     <url>/2016-09-08-@property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90.html</url>
     <content><![CDATA[<h2 id="栈与堆"><a href="#栈与堆" class="headerlink" title="栈与堆"></a>栈与堆</h2><p>首先，我们需要知道：为什么<strong>只有Objective-C对象需要进行内存管理</strong>，而其它非对象类型（如基本数据类型）不需要我们来管理呢？</p>
@@ -185,6 +106,85 @@
 ]]></content>
       <categories>
         <category>编程语言语法</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>AFNetworking 3.1.0 第一部分</title>
+    <url>/2016-09-06-AFNetworking-3.1.0-%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86.html</url>
+    <content><![CDATA[<h2 id="写在前面"><a href="#写在前面" class="headerlink" title="写在前面"></a><strong>写在前面</strong></h2><p>我主要根据作者polobymulberry的博客<a href="http://www.cnblogs.com/polobymulberry/category/785705.html">AFNetworking源码阅读系列</a>来学习，因为我有很多知识不懂，所以有些地方可能会记录得过于繁琐。原作者的大体流程和记录不变，某些知识点会有自己的补充。在此非常感谢博客作者polobymulberry的分享。</p>
+<a id="more"></a>
+
+<blockquote>
+<p>第一次运行运行example时总是出现 Module ‘AFNetworking’ not found 问题，查了好多关于Module的资料，对于问题的解决却没有帮助，后来偶然间在AFNetworking的github上的issues里找到解决办法，真是特别惭愧。应该点击文件夹内的<code>AFNetworking.xcworkspace</code>，而不是其他<code>.xcodeproj</code>文件。</p>
+</blockquote>
+<p>图片1</p>
+<p>运行成功后，就开始我们艰难的学习旅程吧！</p>
+<h2 id="开始"><a href="#开始" class="headerlink" title="开始"></a><strong>开始</strong></h2><h3 id="AppDelegate"><a href="#AppDelegate" class="headerlink" title="AppDelegate"></a>AppDelegate</h3><p>此文件主要就是实现函数didFinishLaunchingWithOptions。将windows的rootViewController设置为rootViewController为GlobaltimelineViewController的NavigationController。此处有两点需要注意一下：</p>
+<p>第一处</p>
+<figure class="highlight angelscript"><table><tr><td class="code"><pre><span class="line">NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:<span class="number">4</span> * <span class="number">1024</span> * <span class="number">1024</span> diskCapacity:<span class="number">20</span> * <span class="number">1024</span> * <span class="number">1024</span> diskPath:nil];</span><br><span class="line">[NSURLCache setSharedURLCache:URLCache];</span><br></pre></td></tr></table></figure>
+
+<p>NSURLCache 为您的应用的 URL 请求提供了内存中（对应memoryCapacity）以及磁盘上（对应diskCapacity）的综合缓存机制。所以你想使用NSURLCache带来的好处，就需要在此处设置一个sharedURLCache。</p>
+<p>第二处</p>
+<figure class="highlight scheme"><table><tr><td class="code"><pre><span class="line">[[<span class="name">AFNetworkActivityIndicatorManager</span> sharedManager] setEnabled:YES]<span class="comment">;</span></span><br></pre></td></tr></table></figure>
+
+<p>为了说明AFNetworkingActivityIndicator是什么，直接上图：</p>
+<p>图2</p>
+<p>当你有session task正在运行时，这个小菊花就会转啊转。这个是自动检测的，只需要你设置AFNetworkingActivityIndicatorManager的sharedManager中的enabled设为YES即可。</p>
+<p>这里我简单看了下AFNetworkingActivityIndicatorManager，发现它对外接口不多，比较容易理解它的业务流程。所以我准备在第三部分就将AFNetworkingActivityIndicatorManager的源码拿下。</p>
+<p>设置完了cache和AFNetworkingActivityIndicator，接着就是进入GlobalTimelineViewController（UITableViewController）了。这里我学到一个，就是UITableViewController可以使用initWithStyle进行初始化。（<strong>因为我对iOS界面不太了解，所以这个initWithStyle现在并不懂</strong>）</p>
+<blockquote>
+<p>polobymulberry在开篇画了一个iOS Example的代码结构图，我不太懂MVC，特地查了下。以下是我个人非常粗浅的了解：</p>
+<ul>
+<li><p>M代表Model，V代表View，C代表Cotroller。这是一种设计模式，是想让各模块分离，视图跟数据处理以及中间的控制协调端各司其职。</p>
+</li>
+<li><p>视图只用于展现APP的界面，用于人和程序的交互。至于你点击按钮后产生的反馈，是由Controller来传递给Model处理，比如点击按钮后，会在文本框内展现文字。则Model从数据库中读取文字并通知Controller，事件已经处理完，Controller收到通知然后决定怎么处理，比如通过outlet控制View展示文字。</p>
+</li>
+<li><p>注意View和Model之间并不直接通信。</p>
+<p>图3</p>
+</li>
+</ul>
+<p>参考自<a href="http://blog.csdn.net/nhwslxf123/article/details/49703773">实际案例讲解iOS设计模式——MVC模式</a></p>
+</blockquote>
+<h3 id="GlobalTimelineViewController"><a href="#GlobalTimelineViewController" class="headerlink" title="GlobalTimelineViewController"></a>GlobalTimelineViewController</h3><p>主要是围绕UITableView的delegate和dataSource来说。</p>
+<h5 id="1-UITableViewDelegate"><a href="#1-UITableViewDelegate" class="headerlink" title="1) UITableViewDelegate"></a>1) UITableViewDelegate</h5><p>主要是计算heightForRowAtIndexPath这个函数比较麻烦（应该是<code>-(CGFloat)tableView:heightForRowAtIndexPath:</code>函数），这里的Cell比较简单，可以直接使用posts中存储的text值来计算高度，核心代码就下面这句：</p>
+<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line"><span class="built_in">CGRect</span> rectToFit = [text boundingRectWithSize:<span class="built_in">CGSizeMake</span>(<span class="number">240.0</span>f, <span class="built_in">CGFLOAT_MAX</span>) options:<span class="built_in">NSStringDrawingUsesLineFragmentOrigin</span> attributes:@&#123;<span class="built_in">NSFontAttributeName</span>: [<span class="built_in">UIFont</span> systemFontOfSize:<span class="number">12.0</span>f]&#125; context:<span class="literal">nil</span>];</span><br></pre></td></tr></table></figure>
+
+<p>对于boundingRectWithSize的使用又增进了一步。（<strong>这里我也不懂</strong>）</p>
+<h5 id="2-UITableViewDataSource"><a href="#2-UITableViewDataSource" class="headerlink" title="2) UITableViewDataSource"></a>2) UITableViewDataSource</h5><p>主要是用posts作为数据源，而posts的获取在此处尤为关键，是通过Post本身（model）的globalTimelinePostsWithBlock函数获取数据的，这里作者将网络端的请求放在了model里面。</p>
+<p>接着调用了refreshControl控件的setRefreshingWithStateOfTask:。setRefreshingWithStateOfTask:其实是UIRefreshControl+AFNetworking的一个category中定义的。UIRefreshControl+AFNetworking的源码很简单，放在第四部分讲。</p>
+<p>注意setRefreshingWithStateOfTask:有一个参数就是NSURLSessionTask*。而这个NSURLSessionTask的获取是调用了Post类中的globalTimelinePostsWithBlock:函数。</p>
+<p>在globalTimelinePostsWithBlock:函数中其实封装了一层AFHTTPSessionManager的GET函数</p>
+<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">nullable</span> <span class="built_in">NSURLSessionDataTask</span> *)GET:(<span class="built_in">NSString</span> *)URLString</span><br><span class="line">                            parameters:(<span class="keyword">nullable</span> <span class="keyword">id</span>)parameters</span><br><span class="line">                              progress:(<span class="keyword">nullable</span> <span class="keyword">void</span> (^)(<span class="built_in">NSProgress</span> *downloadProgress)) downloadProgress</span><br><span class="line">                              success:(<span class="keyword">nullable</span> <span class="keyword">void</span> (^)(<span class="built_in">NSURLSessionDataTask</span> *task, <span class="keyword">id</span> _Nullable responseObject))success</span><br><span class="line">                                failure:(<span class="keyword">nullable</span> <span class="keyword">void</span> (^)(<span class="built_in">NSURLSessionDataTask</span> * _Nullable task, <span class="built_in">NSError</span> *error))failure;</span><br></pre></td></tr></table></figure>
+
+<p>具体细节后面讨论，此处我们知道是根据一个url获取到服务器端的数据即可。注意获取到的数据是JSON格式的，这里作者在Post类，即Model中定义了一个JSON—-&gt;Model函数-initWithAttributes，，也就是说模型数据转化部分也放在了model中。</p>
+<p>另外，调用GET方法不是直接用AFHTTPSessionManager的manager，而是又定义了一个AFAppDotNetAPIClient，继承自AFHTTPSessionManager。并在其定义的单例模式中简单地封装了一些AFHTTPSessionManager的设置。</p>
+<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line">+ (<span class="keyword">instancetype</span>)sharedClient &#123;</span><br><span class="line">       <span class="keyword">static</span> AFAppDotNetAPIClient *_sharedClient = <span class="literal">nil</span>;</span><br><span class="line">       <span class="keyword">static</span> <span class="built_in">dispatch_once_t</span> onceToken;</span><br><span class="line">    <span class="built_in">dispatch_once</span>(&amp;onceToken, ^&#123;</span><br><span class="line">        <span class="comment">// 初始化HTTP Client的base url，此处为@&quot;https://api.app.net/&quot;</span></span><br><span class="line">        _sharedClient = [[AFAppDotNetAPIClient alloc] initWithBaseURL:[<span class="built_in">NSURL</span> URLWithString:AFAppDotNetAPIBaseURLString]];</span><br><span class="line">           <span class="comment">// 设置HTTP Client的安全策略为AFSSLPinningModeNone</span></span><br><span class="line">        _sharedClient.securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeNone];</span><br><span class="line">&#125;);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> _sharedClient;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>知识点：SSL Pinning</p>
+<p>Https对比Http已经很安全，但在建立安全链接的过程中，可能遭受中间人攻击。防御这种类型攻击的最直接方式是Client使用者能正确鉴定Server发的证书【目前很多浏览器在这方面做的足够好，用户只要不在遇到警告时还继续其中的危险操作】，而对于Client的开发者而言，一种方式保持一个可信的根证书颁发机构列表，确认可信的证书，警告或阻止不是可信根证书颁发机构颁发的证书。</p>
+<p>SSL Pinning其实就是证书绑定，一般浏览器的做法是信任可信根证书颁发机构颁发的证书，但在移动端【非浏览器的桌面应用亦如此】，应用只和少数的几个Server有交互，所以可以做得更极致点，直接就在应用内保留需要使用的具体Server的证书。对于iOS开发者而言，如果使用AFNetwoking作为网络库，那么要做到这点就很方便，直接证书作为资源打包进去就好，AFNetworking会自动加载，具体代码就不贴了，nsscreencast已经有很好的tutorial。</p>
+<p>至于model根据网络层获取的数据赋值，除了user的头像那块比较难，因为涉及到UIImageView+AFNetworking等文件，其他部分很简单。而AFNetworking的UIImageView+AFNetworking的部分其实很类似SDWebImage的思路。</p>
+<h5 id="Add：BLock作为函数参数"><a href="#Add：BLock作为函数参数" class="headerlink" title="Add：BLock作为函数参数"></a>Add：BLock作为函数参数</h5><p><code>block原本的形式为:</code></p>
+<p><code>返回值 (^block名称 可省) (参数 可省) ＝ ^&#123;函数体&#125;;</code><br><code>调用形式： block名称(参数);</code></p>
+<p>在GlobalTimelineViewController.m <code>- (void)reload:</code> 函数中遇到了第一个block</p>
+<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line"><span class="built_in">NSURLSessionTask</span> *task = [Post globalTimelinePostsWithBlock:^(<span class="built_in">NSArray</span> *posts, <span class="built_in">NSError</span> *error) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!error) &#123;</span><br><span class="line">            <span class="keyword">self</span>.posts = posts;</span><br><span class="line">            [<span class="keyword">self</span>.tableView reloadData];</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;];</span><br></pre></td></tr></table></figure>
+
+<p><code>^(NSArray *posts, NSError *error)&#123;&#125;</code> 整个block作为参数传递给<code>+ (NSURLSessionDataTask *)globalTimelinePostsWithBlock:</code>函数</p>
+<blockquote>
+<p>参数传递只需要 ^(参数){block函数体}</p>
+<p>^表明是block形式</p>
+</blockquote>
+<p>Post.m <code>+ (NSURLSessionDataTask *)globalTimelinePostsWithBlock:</code>函数:</p>
+<figure class="highlight objectivec"><table><tr><td class="code"><pre><span class="line">+ (<span class="built_in">NSURLSessionDataTask</span> *)globalTimelinePostsWithBlock:(<span class="keyword">void</span> (^)(<span class="built_in">NSArray</span> *posts, <span class="built_in">NSError</span> *error))block &#123;</span><br><span class="line">                 ......</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>即这个函数的参数为(void (^)(NSArray <em>posts, NSError</em> error))block</p>
+<p>(返回值 (^)(参数))block名称</p>
+</blockquote>
+<p>也就是说在block作为函数参数传递时，定义block的这个A函数(<code>globalTimelinePostsWithBlock:</code>)并没有block函数体，而是调用A函数(<code>[Post globalTimelinePostsWithBlock:]</code>)在传参数时定义block的具体执行内容。</p>
+]]></content>
+      <categories>
+        <category>源码解析</category>
       </categories>
   </entry>
   <entry>
@@ -309,6 +309,86 @@
       </categories>
   </entry>
   <entry>
+    <title>Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</title>
+    <url>/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx.html</url>
+    <content><![CDATA[<h2 id="前情提要"><a href="#前情提要" class="headerlink" title="前情提要"></a>前情提要</h2><p>在上一篇博文“<a href="https://amywushu.github.io/2017/03/07/%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx.html">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>”中，我分析了 MSHookMessageEx 以前的老代码，也就是 iOS5 版本。那么在这一篇文中，我将通过逆向来分析新版的 MSHookMessageEx。</p>
+<p>两个版本的大部分代码和流程都差不多，主要区别在于，当 hook 的方法不是本类方法的时候，老版本的代码是通过嵌入机器码来获取 IMP，新版本是通过构建 trampoline（蹦床）页来获取 IMP。</p>
+<a id="more"></a>
+
+<h2 id="如何调试"><a href="#如何调试" class="headerlink" title="如何调试"></a>如何调试</h2><p>我们使用 CydiaSubstrate 框架对 APP 作 hook 操作的话，它是会在 /Library/MobileSubstarte/DynamicLibraries/ 目录下生成一个 .dylib 文件和一个对应的 plist 文件。这个 .dylib 文件将在 App 启动时被 dyld 加载到程序中，对指定类的方法进行 hook。</p>
+<ol>
+<li>在 iPhone 的 /Library/MobileSubstarte/ 目录下有一个 <strong>MobileSubstrate.dylib</strong> 文件，这只是一个链接文件，它的真身是在 /Library/Frameworks/CydiaSubstrate.framework/Librarys/ 目录下的 SubstrateBootstrap.dylib 文件。</li>
+<li>这个动态库会被加载入每个 App 进程中，然后调用同目录下的 <strong>SubstrateLoader.dylib</strong> 动态库。</li>
+<li>通过 SubstrateLoader.dylib 来启动上级目录下的 Mach-O 文件： <strong>CydiaSubstrate</strong>。关于 MSHookMessageEx 的代码即在这个可执行文件中。</li>
+<li>最后通过 CydiaSubstrate 来加载该 App 对应的，位于 /Library/MobileSubstarte/DynamicLibraries/ 目录下的 hook dylib 文件，从而完成 hook 操作。</li>
+</ol>
+<p><strong>这些动作都发生在 main 函数被调用之前。</strong></p>
+<p>程序启动后，不会再调用 MSHookMessageEx 函数，而是直接通过已被设置的 IMP 值跳到自定义的 hook dylib 中。因此我们要进入 CydiaSubstrate 可执行文件中动态调试 MSHookMessageEx 函数，就需要<strong>将断点下在第3步和第4步之间</strong>。</p>
+<p>准备工作：自己构建的 App，hook 该 App 的 dylib。（这两个程序均已在越狱 iPhone 上安装好）</p>
+<p>首先添加 Symbolic Breakpoint（符号断点）<code>_objc_init</code>，然后运行 App，当程序停在断点处时，在控制台输入 <code>image list -o -f</code> 命令，可以看见，与 Cydia 相关的文件，目前就只加载了 MobileSubstrate.dylib。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/MobileSubstrate.png"></p>
+<p>在 IDA 中打开它的真身 SubstrateBootstrap.dylib，可以看见自定义的函数只有一个 InitFunc_0，其余几个函数（exit、dlclose、dlopen、getenv）都是从外部引用的。而 InitFunc_0 函数也非常简单。主要是通过 dlopen 函数调用几个动态库，来作环境准备，其中我们要下断点的地方就在 dlopen 调用 SubstrateLoader.dylib 时：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateBootstrap_dlopen.png"></p>
+<p>我这边的版本是在0x3DF8地址处，加上 ASLR 偏移，用 <code>br s -a xxx</code> 命令在这个地方下一个断点，然后通过 si 命令进入 dlopen 函数，然后执行到 br x16 的地方，再 si 进入系统库（libdyld.dylib）中的 dlopen 函数。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/dlopen.png"></p>
+<p>dlopen 函数会通过 _dyld_func_lookup 找到对应的 dylib 的地址，然后在最后几行命令中的 blr x8 调用该动态库，我们直接在这条指令的下一条指令下断点，然后 c 运行程序跳到该断点。这时候再使用 image list -o -f 命令，就会发现 SubstrateLoader.dylib 动态库已经被加载起来了。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateLoader.png"></p>
+<p>既然我们已经知道是通过 dlopen 来加载的程序，那么用 IDA 打开 SubstrateLoader.dylib 文件，引用 dlopen 的只有三处：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateLoader_dlopen.png"></p>
+<p>可以在这三处都下断点，然后看是哪一处启动了 CydiaSubstrate Mach-O 文件。结果证明是在 InitFunc_0_0 + 0x1AC8 处的 dlopen 调用了 CydiaSubstrate。</p>
+<p>在控制台中下断点（SubstrateLoader.dylib 的 ASLR + 0x1AC8），运行程序，然后同样进入 dlopen，在blr x8 的下一条指令处下断点，当程序断在这里时，就会发现我们最终要调试的 CydiaSubstrate 文件终于被加载起来了。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/CydiaSubstrate.png"></p>
+<p>然后在 IDA 里面找到 MSHookMessageEx 函数的起点地址（我的版本是0x5908），再下断点，然后运行，就到 MSHookMessageEx 函数里了。</p>
+<p>以下是整个流程的动图：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/%E5%8A%A8%E5%9B%BE.gif"></p>
+<h2 id="逆向分析"><a href="#逆向分析" class="headerlink" title="逆向分析"></a>逆向分析</h2><h3 id="异同点"><a href="#异同点" class="headerlink" title="异同点"></a>异同点</h3><p>通过阅读 IDA 中的汇编代码我们会发现，整个流程以及大部分的代码都与我上一篇博文中讲的老版本的源代码非常相似。</p>
+<ul>
+<li><code>sub_14130</code> 函数是新增的，涉及到调用 “/usr/sbin/aslmanager”、”/usr/lib/system/libsystem_sandbox.dylib” 等动态库，貌似是在做沙盒权限检查（此点存疑）。</li>
+<li><code>sub_5E6C</code>函数即是之前的 MSFindMethod 函数。</li>
+<li><code>sub_10000</code> 函数则做的 if (!direct){…} 这段代码的工作。</li>
+</ul>
+<p>很多部分大致相同，这些地方不做过多介绍，接下来主要讲解的是 sub_10000 函数。</p>
+<h3 id="sub-10000"><a href="#sub-10000" class="headerlink" title="sub_10000"></a>sub_10000</h3><p>在 IDA 中查看 sub_10000 函数的主要部分（ARM64）：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/sub_10000.png"></p>
+<p>蓝绿色部分是正常执行流程，可以看到主要使用了三个函数： vm_allocate()、vm_deallocate()、vm_remap()。</p>
+<p>这里涉及到一个 <code>trampoline</code>（蹦床）的概念。在很多时候，我们并不能直接执行我们想要的代码，而需要一个跳转代码或者跳转页面，经过一次或多次的跳转，最后跳到目的代码处执行。生成的这个跳转的代码或者页面就称之为 trampoline。</p>
+<p><strong>在本函数中，target_address 页面就是 trampoline page。</strong></p>
+<p>蹦床通常利用可写代码页（即具有可写、可执行权限）来实现。将指令写入 PROT_EXEC | PROT_WRITE 页面，需要的上下文信息直接包含在生成的代码中。</p>
+<p>但是 iOS 中不允许 PROT_EXEC、 PROT_WRITE 这两种权限同时出现在页面中，也就是说不存在可写代码页（在我的测试中，ARMv7是可以的）。那么就需要使用一种替代机制来是实现 trampoline 中特定的上下文数据以及代码。</p>
+<p>这种机制就是 <strong>vm_remap() + PC 相对寻址</strong>的组合。</p>
+<p>vm_remap() 函数可以在新的地址中映射现有的代码页，并会同时保留页面保护权限（如果映射范围内的内存权限相同，则返回该权限；如果不同，则返回最大限制值）。也就是说，我们可以通过 vm_remap() 函数映射可执行的代码页面，或者可写的数据页面到新的页面地址处。</p>
+<p>那么如何配置 trampoline 的数据呢？答案是通过 PC 相对寻址。PC（程序计数器）寄存器指示当前正在执行的指令的地址。我们将可写的数据页映射到可执行的代码页（trampoline page）旁边，然后使用 PC 相对寻址从相邻的可写数据页面加载 trampoline data，这样就达到了“可写”代码页的目的。</p>
+<p>在本函数中也是这样做的，<strong>先通过 vm_allocate() 分配两页内存（0x8000），然后通过 vm_deallocate 释放第二页，作为 trampoline page，调用 vm_remap() 将 MSCloseTable 映射到已释放的第二页，最后在第一页（可写数据页）中填充需要的数据，返回第二页（可执行代码页）的首地址。</strong></p>
+<p>以下是我仿照着写的伪代码</p>
+<figure class="highlight angelscript"><table><tr><td class="code"><pre><span class="line">vm_address_t address = <span class="number">0x0</span>;</span><br><span class="line">kern_return_t kt;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Try to allocate two pages */</span></span><br><span class="line">kt = vm_allocate (mach_task_self (), &amp;address, PAGE_SIZE*<span class="number">2</span>, <span class="number">1</span>);</span><br><span class="line"><span class="keyword">if</span> (kt != KERN_SUCCESS) &#123;</span><br><span class="line">   <span class="keyword">return</span> ...;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Now drop the second half of the allocation to make room for the trampoline table */</span></span><br><span class="line">vm_address_t target_address = address+PAGE_SIZE;</span><br><span class="line">kt = vm_deallocate (mach_task_self (), target_address, PAGE_SIZE);</span><br><span class="line"><span class="keyword">if</span> (kt != KERN_SUCCESS) &#123;</span><br><span class="line">   <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Remap the trampoline table to directly follow the address page */</span></span><br><span class="line">vm_prot_t cur_prot;</span><br><span class="line">vm_prot_t max_prot;</span><br><span class="line"></span><br><span class="line">kt = vm_remap (mach_task_self (), &amp;target_address, PAGE_SIZE, <span class="number">0x0</span>, FALSE, mach_task_self (), (vm_address_t) &amp;MSCloseTable, FALSE, &amp;cur_prot, &amp;max_prot, VM_INHERIT_SHARE);</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (kt != KERN_SUCCESS) &#123;</span><br><span class="line">   <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="built_in">int</span>p64_t **x20 = _class;<span class="comment">//&amp;_class+0x8 == &amp;sel</span></span><br><span class="line">*x20 + <span class="number">0x8</span> = sub_5F20</span><br><span class="line">address = x20;</span><br><span class="line">address + <span class="number">0x8</span> = (IMP)MSCloseTarget;</span><br><span class="line">	</span><br><span class="line"><span class="keyword">return</span> target_address;</span><br></pre></td></tr></table></figure>
+
+<p>其中 MSCloseTable 的具体内容为：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/MSCloseTable.png"></p>
+<p>MSCloseTarget 中只有三条命令，主要是执行加载、跳转的操作。将PC-0x4000 处的值加载到 x16 寄存器中（这里 IDA 自动将相对偏移-0x4000解释为 _MSCloseTarget，实际上我们只需要这个偏移值，执行时偏移值指向的是 address），然后再将[x16]中的值存入x16，[x16+0x8]中的值存入x17，然后跳到x17所指的地址处执行代码。在动态调试中我们会发现这三条命令再加 nop 指令填充了 trampoline page。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/trampoline.png"></p>
+<p>上图中，target_address = 0x105b7c000, address = 0x105b78000，x17 = (IMP)MSCloseTarget，[x16] = &amp;(_class+sel)，[x16]+0x8 = sub_5F20。</p>
+<p>也就是说，trampoline 的作用就是使得程序跳转到 MSCloseTarget 处执行，并把参数 _class，sel 的地址以及 sub_5F20 的地址存入 x16 寄存器、[x16]+0x8中。</p>
+<p>MSCloseTarget 函数的主要作用是调用 sub_5F20 函数，并传入参数 _class 和 sel。</p>
+<p>sub_5F20 函数则是直接调用 class_getMethodImplementation(_class, sel) 函数。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/sub_5F20.png"></p>
+<p>总的来说，sub_10000 函数的作用与老版本的一样，都是为了嵌入一段 class_getMethodImplementation(_class, sel) 的 <code>JIT (just in time)</code> 代码，使得程序在运行时才会执行这段代码，而不是在开始的时候就已经传参执行了。</p>
+<h3 id="为什么不使用原来的-if-direct"><a href="#为什么不使用原来的-if-direct" class="headerlink" title="为什么不使用原来的 if (!direct)"></a>为什么不使用原来的 if (!direct)</h3><p>首先 if (!direct) 中的机器码只定义了 ARM 32位、i386、x86_64位，没有定义 ARM64 的嵌入指令。</p>
+<p><del>再者，在 ARM64 中也不能使用这种先 mmap 一段可写的内存，然后将内存改为可执行的权限的方法。</del></p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/mprotect.png"></p>
+<p>上图来自2014年在 The Black Hat USA 会议中的一篇演讲 “<a href="https://lifeasageek.github.io/papers/jang:ios-slides.pdf">Exploit unpatched iOS vulnerabilities for fun and profit</a>”。</p>
+<p>比如以下代码：</p>
+<figure class="highlight angelscript"><table><tr><td class="code"><pre><span class="line">#<span class="keyword">import</span> &lt;sys/mman.h&gt;</span><br><span class="line"></span><br><span class="line">char shell[] = &#123;<span class="number">0x10</span>, <span class="number">0x20</span>, <span class="number">0x70</span>, <span class="number">0x47</span>&#125;; <span class="comment">// return 16;</span></span><br><span class="line"></span><br><span class="line">- (<span class="built_in">void</span>)viewDidLoad &#123;</span><br><span class="line">    <span class="built_in">void</span> *page = mmap(NULL, <span class="number">4096</span>, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, <span class="number">-1</span>, <span class="number">0</span>);</span><br><span class="line">    <span class="keyword">if</span> (page == (<span class="built_in">void</span>*)<span class="number">-1</span>) &#123;</span><br><span class="line">        perror(NULL);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    memcpy(page, shell, sizeof(shell));</span><br><span class="line">    <span class="keyword">typedef</span> <span class="built_in">int</span> (*shell_execute)();</span><br><span class="line">    shell_execute exe = (shell_execute)((<span class="built_in">int</span>)page+<span class="number">1</span>);</span><br><span class="line">    mprotect(page, <span class="number">4096</span>, PROT_READ | PROT_EXEC);</span><br><span class="line">    NSString *<span class="built_in">string</span> = [NSString <span class="built_in">string</span>WithFormat:@<span class="string">&quot;%d&quot;</span>, exe()];</span><br><span class="line">    NSLog(@<span class="string">&quot;%@&quot;</span>, <span class="built_in">string</span>);</span><br><span class="line">    [<span class="keyword">super</span> viewDidLoad];</span><br><span class="line">    <span class="comment">// Do any additional setup after loading the view, typically from a nib.</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在32位的 iOS 系统上，是可以正确运行并打印出16的 <del>但在64位中，则会报错：EXE_BAD_ACCESS (code=257, address=…)</del></p>
+<p>补充：测试后发现，在64位 iOS 越狱系统上也是可以使用 mprotect 修改权限的，至于为什么要使用蹦床页面，我猜测是为了更好的兼容性以及后续扩展。</p>
+<hr>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] Implementing imp_implementationWithBlock()　<a href="http://landonf.org/2011/04/index.html">http://landonf.org/2011/04/index.html</a><br>[2] pandamonia/libffi-iOS　<a href="https://github.com/pandamonia/libffi-iOS/blob/master/patches/ios">https://github.com/pandamonia/libffi-iOS/blob/master/patches/ios</a><br>[3] WilliamLCobb/iNDS　<a href="https://github.com/WilliamLCobb/iNDS/issues/44">https://github.com/WilliamLCobb/iNDS/issues/44</a><br>[4] 谁偷了我的热更新？Mono，JIT，iOS 　<br><a href="http://www.cnblogs.com/murongxiaopifu/p/4278947.html">http://www.cnblogs.com/murongxiaopifu/p/4278947.html</a></p>
+]]></content>
+      <categories>
+        <category>源码解析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>Hook 原理之 Method Swizzling</title>
     <url>/2017-03-01-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-Method-Swizzling.html</url>
     <content><![CDATA[<h2 id="基础知识提要"><a href="#基础知识提要" class="headerlink" title="基础知识提要"></a>基础知识提要</h2><p>Method Swizzling 其实就是利用了 <code>runtime</code> 机制，替换了调用的方法（method）的实现（imp）。很多人一看到有 runtime 就头疼了，跟 runloop 一样，由于被太多大牛提起，反而心生胆怯，觉得是一个很难理解的机制。</p>
@@ -396,86 +476,6 @@
       </categories>
   </entry>
   <entry>
-    <title>Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</title>
-    <url>/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx.html</url>
-    <content><![CDATA[<h2 id="前情提要"><a href="#前情提要" class="headerlink" title="前情提要"></a>前情提要</h2><p>在上一篇博文“<a href="https://amywushu.github.io/2017/03/07/%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx.html">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>”中，我分析了 MSHookMessageEx 以前的老代码，也就是 iOS5 版本。那么在这一篇文中，我将通过逆向来分析新版的 MSHookMessageEx。</p>
-<p>两个版本的大部分代码和流程都差不多，主要区别在于，当 hook 的方法不是本类方法的时候，老版本的代码是通过嵌入机器码来获取 IMP，新版本是通过构建 trampoline（蹦床）页来获取 IMP。</p>
-<a id="more"></a>
-
-<h2 id="如何调试"><a href="#如何调试" class="headerlink" title="如何调试"></a>如何调试</h2><p>我们使用 CydiaSubstrate 框架对 APP 作 hook 操作的话，它是会在 /Library/MobileSubstarte/DynamicLibraries/ 目录下生成一个 .dylib 文件和一个对应的 plist 文件。这个 .dylib 文件将在 App 启动时被 dyld 加载到程序中，对指定类的方法进行 hook。</p>
-<ol>
-<li>在 iPhone 的 /Library/MobileSubstarte/ 目录下有一个 <strong>MobileSubstrate.dylib</strong> 文件，这只是一个链接文件，它的真身是在 /Library/Frameworks/CydiaSubstrate.framework/Librarys/ 目录下的 SubstrateBootstrap.dylib 文件。</li>
-<li>这个动态库会被加载入每个 App 进程中，然后调用同目录下的 <strong>SubstrateLoader.dylib</strong> 动态库。</li>
-<li>通过 SubstrateLoader.dylib 来启动上级目录下的 Mach-O 文件： <strong>CydiaSubstrate</strong>。关于 MSHookMessageEx 的代码即在这个可执行文件中。</li>
-<li>最后通过 CydiaSubstrate 来加载该 App 对应的，位于 /Library/MobileSubstarte/DynamicLibraries/ 目录下的 hook dylib 文件，从而完成 hook 操作。</li>
-</ol>
-<p><strong>这些动作都发生在 main 函数被调用之前。</strong></p>
-<p>程序启动后，不会再调用 MSHookMessageEx 函数，而是直接通过已被设置的 IMP 值跳到自定义的 hook dylib 中。因此我们要进入 CydiaSubstrate 可执行文件中动态调试 MSHookMessageEx 函数，就需要<strong>将断点下在第3步和第4步之间</strong>。</p>
-<p>准备工作：自己构建的 App，hook 该 App 的 dylib。（这两个程序均已在越狱 iPhone 上安装好）</p>
-<p>首先添加 Symbolic Breakpoint（符号断点）<code>_objc_init</code>，然后运行 App，当程序停在断点处时，在控制台输入 <code>image list -o -f</code> 命令，可以看见，与 Cydia 相关的文件，目前就只加载了 MobileSubstrate.dylib。</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/MobileSubstrate.png"></p>
-<p>在 IDA 中打开它的真身 SubstrateBootstrap.dylib，可以看见自定义的函数只有一个 InitFunc_0，其余几个函数（exit、dlclose、dlopen、getenv）都是从外部引用的。而 InitFunc_0 函数也非常简单。主要是通过 dlopen 函数调用几个动态库，来作环境准备，其中我们要下断点的地方就在 dlopen 调用 SubstrateLoader.dylib 时：</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateBootstrap_dlopen.png"></p>
-<p>我这边的版本是在0x3DF8地址处，加上 ASLR 偏移，用 <code>br s -a xxx</code> 命令在这个地方下一个断点，然后通过 si 命令进入 dlopen 函数，然后执行到 br x16 的地方，再 si 进入系统库（libdyld.dylib）中的 dlopen 函数。</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/dlopen.png"></p>
-<p>dlopen 函数会通过 _dyld_func_lookup 找到对应的 dylib 的地址，然后在最后几行命令中的 blr x8 调用该动态库，我们直接在这条指令的下一条指令下断点，然后 c 运行程序跳到该断点。这时候再使用 image list -o -f 命令，就会发现 SubstrateLoader.dylib 动态库已经被加载起来了。</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateLoader.png"></p>
-<p>既然我们已经知道是通过 dlopen 来加载的程序，那么用 IDA 打开 SubstrateLoader.dylib 文件，引用 dlopen 的只有三处：</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateLoader_dlopen.png"></p>
-<p>可以在这三处都下断点，然后看是哪一处启动了 CydiaSubstrate Mach-O 文件。结果证明是在 InitFunc_0_0 + 0x1AC8 处的 dlopen 调用了 CydiaSubstrate。</p>
-<p>在控制台中下断点（SubstrateLoader.dylib 的 ASLR + 0x1AC8），运行程序，然后同样进入 dlopen，在blr x8 的下一条指令处下断点，当程序断在这里时，就会发现我们最终要调试的 CydiaSubstrate 文件终于被加载起来了。</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/CydiaSubstrate.png"></p>
-<p>然后在 IDA 里面找到 MSHookMessageEx 函数的起点地址（我的版本是0x5908），再下断点，然后运行，就到 MSHookMessageEx 函数里了。</p>
-<p>以下是整个流程的动图：</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/%E5%8A%A8%E5%9B%BE.gif"></p>
-<h2 id="逆向分析"><a href="#逆向分析" class="headerlink" title="逆向分析"></a>逆向分析</h2><h3 id="异同点"><a href="#异同点" class="headerlink" title="异同点"></a>异同点</h3><p>通过阅读 IDA 中的汇编代码我们会发现，整个流程以及大部分的代码都与我上一篇博文中讲的老版本的源代码非常相似。</p>
-<ul>
-<li><code>sub_14130</code> 函数是新增的，涉及到调用 “/usr/sbin/aslmanager”、”/usr/lib/system/libsystem_sandbox.dylib” 等动态库，貌似是在做沙盒权限检查（此点存疑）。</li>
-<li><code>sub_5E6C</code>函数即是之前的 MSFindMethod 函数。</li>
-<li><code>sub_10000</code> 函数则做的 if (!direct){…} 这段代码的工作。</li>
-</ul>
-<p>很多部分大致相同，这些地方不做过多介绍，接下来主要讲解的是 sub_10000 函数。</p>
-<h3 id="sub-10000"><a href="#sub-10000" class="headerlink" title="sub_10000"></a>sub_10000</h3><p>在 IDA 中查看 sub_10000 函数的主要部分（ARM64）：</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/sub_10000.png"></p>
-<p>蓝绿色部分是正常执行流程，可以看到主要使用了三个函数： vm_allocate()、vm_deallocate()、vm_remap()。</p>
-<p>这里涉及到一个 <code>trampoline</code>（蹦床）的概念。在很多时候，我们并不能直接执行我们想要的代码，而需要一个跳转代码或者跳转页面，经过一次或多次的跳转，最后跳到目的代码处执行。生成的这个跳转的代码或者页面就称之为 trampoline。</p>
-<p><strong>在本函数中，target_address 页面就是 trampoline page。</strong></p>
-<p>蹦床通常利用可写代码页（即具有可写、可执行权限）来实现。将指令写入 PROT_EXEC | PROT_WRITE 页面，需要的上下文信息直接包含在生成的代码中。</p>
-<p>但是 iOS 中不允许 PROT_EXEC、 PROT_WRITE 这两种权限同时出现在页面中，也就是说不存在可写代码页（在我的测试中，ARMv7是可以的）。那么就需要使用一种替代机制来是实现 trampoline 中特定的上下文数据以及代码。</p>
-<p>这种机制就是 <strong>vm_remap() + PC 相对寻址</strong>的组合。</p>
-<p>vm_remap() 函数可以在新的地址中映射现有的代码页，并会同时保留页面保护权限（如果映射范围内的内存权限相同，则返回该权限；如果不同，则返回最大限制值）。也就是说，我们可以通过 vm_remap() 函数映射可执行的代码页面，或者可写的数据页面到新的页面地址处。</p>
-<p>那么如何配置 trampoline 的数据呢？答案是通过 PC 相对寻址。PC（程序计数器）寄存器指示当前正在执行的指令的地址。我们将可写的数据页映射到可执行的代码页（trampoline page）旁边，然后使用 PC 相对寻址从相邻的可写数据页面加载 trampoline data，这样就达到了“可写”代码页的目的。</p>
-<p>在本函数中也是这样做的，<strong>先通过 vm_allocate() 分配两页内存（0x8000），然后通过 vm_deallocate 释放第二页，作为 trampoline page，调用 vm_remap() 将 MSCloseTable 映射到已释放的第二页，最后在第一页（可写数据页）中填充需要的数据，返回第二页（可执行代码页）的首地址。</strong></p>
-<p>以下是我仿照着写的伪代码</p>
-<figure class="highlight angelscript"><table><tr><td class="code"><pre><span class="line">vm_address_t address = <span class="number">0x0</span>;</span><br><span class="line">kern_return_t kt;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Try to allocate two pages */</span></span><br><span class="line">kt = vm_allocate (mach_task_self (), &amp;address, PAGE_SIZE*<span class="number">2</span>, <span class="number">1</span>);</span><br><span class="line"><span class="keyword">if</span> (kt != KERN_SUCCESS) &#123;</span><br><span class="line">   <span class="keyword">return</span> ...;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Now drop the second half of the allocation to make room for the trampoline table */</span></span><br><span class="line">vm_address_t target_address = address+PAGE_SIZE;</span><br><span class="line">kt = vm_deallocate (mach_task_self (), target_address, PAGE_SIZE);</span><br><span class="line"><span class="keyword">if</span> (kt != KERN_SUCCESS) &#123;</span><br><span class="line">   <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Remap the trampoline table to directly follow the address page */</span></span><br><span class="line">vm_prot_t cur_prot;</span><br><span class="line">vm_prot_t max_prot;</span><br><span class="line"></span><br><span class="line">kt = vm_remap (mach_task_self (), &amp;target_address, PAGE_SIZE, <span class="number">0x0</span>, FALSE, mach_task_self (), (vm_address_t) &amp;MSCloseTable, FALSE, &amp;cur_prot, &amp;max_prot, VM_INHERIT_SHARE);</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (kt != KERN_SUCCESS) &#123;</span><br><span class="line">   <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="built_in">int</span>p64_t **x20 = _class;<span class="comment">//&amp;_class+0x8 == &amp;sel</span></span><br><span class="line">*x20 + <span class="number">0x8</span> = sub_5F20</span><br><span class="line">address = x20;</span><br><span class="line">address + <span class="number">0x8</span> = (IMP)MSCloseTarget;</span><br><span class="line">	</span><br><span class="line"><span class="keyword">return</span> target_address;</span><br></pre></td></tr></table></figure>
-
-<p>其中 MSCloseTable 的具体内容为：</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/MSCloseTable.png"></p>
-<p>MSCloseTarget 中只有三条命令，主要是执行加载、跳转的操作。将PC-0x4000 处的值加载到 x16 寄存器中（这里 IDA 自动将相对偏移-0x4000解释为 _MSCloseTarget，实际上我们只需要这个偏移值，执行时偏移值指向的是 address），然后再将[x16]中的值存入x16，[x16+0x8]中的值存入x17，然后跳到x17所指的地址处执行代码。在动态调试中我们会发现这三条命令再加 nop 指令填充了 trampoline page。</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/trampoline.png"></p>
-<p>上图中，target_address = 0x105b7c000, address = 0x105b78000，x17 = (IMP)MSCloseTarget，[x16] = &amp;(_class+sel)，[x16]+0x8 = sub_5F20。</p>
-<p>也就是说，trampoline 的作用就是使得程序跳转到 MSCloseTarget 处执行，并把参数 _class，sel 的地址以及 sub_5F20 的地址存入 x16 寄存器、[x16]+0x8中。</p>
-<p>MSCloseTarget 函数的主要作用是调用 sub_5F20 函数，并传入参数 _class 和 sel。</p>
-<p>sub_5F20 函数则是直接调用 class_getMethodImplementation(_class, sel) 函数。</p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/sub_5F20.png"></p>
-<p>总的来说，sub_10000 函数的作用与老版本的一样，都是为了嵌入一段 class_getMethodImplementation(_class, sel) 的 <code>JIT (just in time)</code> 代码，使得程序在运行时才会执行这段代码，而不是在开始的时候就已经传参执行了。</p>
-<h3 id="为什么不使用原来的-if-direct"><a href="#为什么不使用原来的-if-direct" class="headerlink" title="为什么不使用原来的 if (!direct)"></a>为什么不使用原来的 if (!direct)</h3><p>首先 if (!direct) 中的机器码只定义了 ARM 32位、i386、x86_64位，没有定义 ARM64 的嵌入指令。</p>
-<p><del>再者，在 ARM64 中也不能使用这种先 mmap 一段可写的内存，然后将内存改为可执行的权限的方法。</del></p>
-<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/mprotect.png"></p>
-<p>上图来自2014年在 The Black Hat USA 会议中的一篇演讲 “<a href="https://lifeasageek.github.io/papers/jang:ios-slides.pdf">Exploit unpatched iOS vulnerabilities for fun and profit</a>”。</p>
-<p>比如以下代码：</p>
-<figure class="highlight angelscript"><table><tr><td class="code"><pre><span class="line">#<span class="keyword">import</span> &lt;sys/mman.h&gt;</span><br><span class="line"></span><br><span class="line">char shell[] = &#123;<span class="number">0x10</span>, <span class="number">0x20</span>, <span class="number">0x70</span>, <span class="number">0x47</span>&#125;; <span class="comment">// return 16;</span></span><br><span class="line"></span><br><span class="line">- (<span class="built_in">void</span>)viewDidLoad &#123;</span><br><span class="line">    <span class="built_in">void</span> *page = mmap(NULL, <span class="number">4096</span>, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, <span class="number">-1</span>, <span class="number">0</span>);</span><br><span class="line">    <span class="keyword">if</span> (page == (<span class="built_in">void</span>*)<span class="number">-1</span>) &#123;</span><br><span class="line">        perror(NULL);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    memcpy(page, shell, sizeof(shell));</span><br><span class="line">    <span class="keyword">typedef</span> <span class="built_in">int</span> (*shell_execute)();</span><br><span class="line">    shell_execute exe = (shell_execute)((<span class="built_in">int</span>)page+<span class="number">1</span>);</span><br><span class="line">    mprotect(page, <span class="number">4096</span>, PROT_READ | PROT_EXEC);</span><br><span class="line">    NSString *<span class="built_in">string</span> = [NSString <span class="built_in">string</span>WithFormat:@<span class="string">&quot;%d&quot;</span>, exe()];</span><br><span class="line">    NSLog(@<span class="string">&quot;%@&quot;</span>, <span class="built_in">string</span>);</span><br><span class="line">    [<span class="keyword">super</span> viewDidLoad];</span><br><span class="line">    <span class="comment">// Do any additional setup after loading the view, typically from a nib.</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>在32位的 iOS 系统上，是可以正确运行并打印出16的 <del>但在64位中，则会报错：EXE_BAD_ACCESS (code=257, address=…)</del></p>
-<p>补充：测试后发现，在64位 iOS 越狱系统上也是可以使用 mprotect 修改权限的，至于为什么要使用蹦床页面，我猜测是为了更好的兼容性以及后续扩展。</p>
-<hr>
-<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] Implementing imp_implementationWithBlock()　<a href="http://landonf.org/2011/04/index.html">http://landonf.org/2011/04/index.html</a><br>[2] pandamonia/libffi-iOS　<a href="https://github.com/pandamonia/libffi-iOS/blob/master/patches/ios">https://github.com/pandamonia/libffi-iOS/blob/master/patches/ios</a><br>[3] WilliamLCobb/iNDS　<a href="https://github.com/WilliamLCobb/iNDS/issues/44">https://github.com/WilliamLCobb/iNDS/issues/44</a><br>[4] 谁偷了我的热更新？Mono，JIT，iOS 　<br><a href="http://www.cnblogs.com/murongxiaopifu/p/4278947.html">http://www.cnblogs.com/murongxiaopifu/p/4278947.html</a></p>
-]]></content>
-      <categories>
-        <category>源码解析</category>
-      </categories>
-  </entry>
-  <entry>
     <title>GOT 表劫持</title>
     <url>/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81.html</url>
     <content><![CDATA[<h2 id="链接"><a href="#链接" class="headerlink" title="链接"></a>链接</h2><p>在程序从源代码到生成最终的可执行程序，会大体经历编译、汇编、链接三个阶段。编译将源代码转换成为汇编语言（例如.s后缀的文件），汇编阶段将汇编语言转换成机器码（例如.o文件）。链接阶段会合并多个目标文件（上一阶段生成的.o）以及静（动）态链接库中的代码数据等信息，修复文件之间的引用关系，最后生成可执行程序。</p>
@@ -528,122 +528,6 @@
 ]]></content>
       <categories>
         <category>基础知识</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>（译）iOS Kernel Heap Armageddon —— Stefan Esser</title>
-    <url>/2016-08-29-%EF%BC%88%E8%AF%91%EF%BC%89iOS-Kernel-Heap-Armageddon-%E2%80%94%E2%80%94-Stefan-Esser.html</url>
-    <content><![CDATA[<h2 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a><strong>摘要</strong></h2><p>你所了解到的关于 iOS 内核堆利用的公开研究，最终都可以归结于对内核堆空间的分配，这个观点由 nemo 首先提出来。总而言之，这种分配将空间内的内核内存分成相同大小的内存块。通过利用重写堆元数据，可以向空间的空闲列表 (freelist) 中注入任意内存区。</p>
-<a id="more"></a>
-
-<p>在本文中，我们将首先概括关于内核堆空间分配的知识，像 nemo 和 Esser 之前所提到的那样。接着，我们将看一看其他的内核堆管理以及 Mac OSX 和 iOS 内核中的内存分配封装函数。在简单介绍这些封装函数之后，我们将进一步介绍这些分配器在最新版本 iOS 5 之后的改变。本文将继续介绍内核层的应用数据重写与直接攻击分配器的空闲列表区之间的差异。最后将展示一种普遍的技术：为了实现内核堆利用，通过执行内核堆喷射 (heap spraying) ，来控制内核堆布局的布局。</p>
-<h2 id="内核堆空间分配"><a href="#内核堆空间分配" class="headerlink" title="内核堆空间分配"></a><strong>内核堆空间分配</strong></h2><p>对于 Mac OSX 以及越狱的苹果手机，有一种可用的工具叫做 zprint ，它可以查看由内核堆分配器注册的内核内存空间。<br>例如：</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE1.png"></p>
-<p>这些信息都是由内核 API 函数 host_zone_info 以及 mach_zone_info 提供的。当涉及到构造内核堆利用方法时，这些 API 函数都非常有用，因为它们可以检索每个内核空间的详细信息，比如分配的块的数量，空闲内存块的数量等。Sotirov提到：后者对于控制内核堆（又称为堆风水）技术非常有用。但是根据苹果 iOS 6 的介绍，为了防止内核 API 函数被用于工厂 设备iPhone ，这条路已经被关闭了。现在调用 PE_i_can_haz_debugger 函数，在越狱机以及特殊的苹果内部调试设备、通过苹果可能有的特殊调试虚拟磁盘启动的设备上，只会返回 true。不管怎样，以后的内核堆利用已经不能再依赖这些函数了。</p>
-<p>为了弄清楚内核堆分配器是如何工作的，我们可以通过下面的图表了解，这些图表将会一步步记录其内部的运行。分配器将内核内存分成了许多空间，每个空间包含了同样大小的内存块。它首先在空间内分配一大块内存（通常是一个单独的内存页）。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE2.png"></p>
-<p>所有的内存都在这个空间里，然后它被分为大小相同的块。在这个例子中，每块内存正好为 512bytes 。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE3.png"></p>
-<p>内存管理器用每个空闲内存块的 4 个首字节作为指向另一个内存块的指针。如下图所示：</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE4.png"></p>
-<p>空间分配器创建了一个空闲内存块链表，即空闲列表。它是一个后进先出的列表，在链表内，每个元素都指向下一个元素。因为在新的内存页里的第一个空闲内存块首先被添加，正如下图所示，空闲内存将会被反序利用。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE5.png"></p>
-<p>某特定空间的最后一个元素被添加到空闲列表后，当内存被分配给这个特定空间时，该元素也被称为空闲列表头部，同时作为分配内存块标识返回。返回新分配的内存之后，空闲列表中下一个元素的指针从内存块的首4字节读取。指针读取成为新的自由列表头部。它指向的内存块将会因此成为下一个返回值。这个原则由下图证实。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE6.png"></p>
-<p>现在我们知道了堆空间分配的基本机制，接下来我们介绍一下如何利用这种内存分配。我们发现，两个相邻的内存块，第一个为分配缓存区，第二个为空闲内存块，缓存区溢出将会导致堆元数据被覆盖。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE7.png"></p>
-<p>如果攻击者控制了缓存区溢出的数据，那么他完全可以控制空闲列表中指向下一个元素的指针。如上所述的分配将会返回被重写的内存块，使得攻击者控制空闲列表的头部指针。之后分配器将会返回一个被攻击者控制的内存块。在公开的 iOS 内核堆利用中，这种技术被用来返回位于系统调用表中间的一块内存。通过强制内核分配一块内存，并用被攻击者控制的数据覆盖，这种方式可以替换任意系统调用处理程序，并实现任意内核代码执行。</p>
-<p>据了解， iOS 6 的测试版在内核堆分配器中添加了一些内存标签，虽然一般来说，它不阻止攻击空闲列表，但是阻止公开地使用攻击，因为它只允许向内核的空闲列表中注入内存块，但是这样也已经完全在攻击者的控制之下了。</p>
-<h2 id="其他内核堆内存管理和封装器"><a href="#其他内核堆内存管理和封装器" class="headerlink" title="其他内核堆内存管理和封装器"></a><strong>其他内核堆内存管理和封装器</strong></h2><p>Mac OSX 和 iOS 内核包含了许多其他的内核堆内存管理以及封装。下图展示了其中一部分的封装和内存管理。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE8.png"></p>
-<p>在本节中，我们将介绍几个提到的分配器和封装，并讨论它们的属性以及利用。</p>
-<hr>
-<ul>
-<li>kalloc()</li>
-</ul>
-<p>kalloc() 是用来封装 zalloc() 以及 kmem_alloc() 的。它在小分配时使用 zalloc() ，较大的内存请求时使用 kmem_alloc() 。它没有任何额外的堆元数据。因此，需要调用者记住分配的内存大小，当稍后内存使用 kfree() 释放时要求使用相同大小的值。</p>
-<p>存储在内核空间的数据由内存管理器注册一个空间号码，这个号码为 kalloc.xxx ，xxx 即为 kalloc 空间大小。在 iOS 5 中可使用 zprint 工具得到以下空间。(译者注：在OS X 10.11 及以上系统可在 root 权限下使用 zprint | grep kalloc 命令)</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE9.png"></p>
-<p>可以从中发现，这个内核空间是在 8 到 8192 之间的每2倍大小再加上一些额外的空间值，这些额外值的大小是2倍之间可被8整除的数。比如 kalloc.24, kalloc.40, kalloc.48, kalloc.88, kalloc.112, kalloc.192, kalloc.384, kalloc.768, kalloc.1536, kalloc.3072 以及 kalloc.6144 。在 iOS 5 之前，这些 kalloc 空间并不存在，且最小的空间为 16 。这种增加空间的变化可能是为了减少内存浪费，以便使得最常用的分配越来越合适。</p>
-<hr>
-<ul>
-<li>kfree()</li>
-</ul>
-<p>在跳转到下一个封装之前，还有一些值得注意的地方，kfree() 函数。正如之前所提到的那样，调用者需要记住需要释放的块的大小，否则 kfree() 不知道 zfree() 或 kmem_free() 是否被调用，以及需要向内存返回多大的空间。内存管理器除了保持对较大的分配内存块的跟踪之外，对于释放一个比之前所记忆值大的块的尝试将会被忽略。这是一个简单的保护机制防止二次释放。</p>
-<hr>
-<ul>
-<li>_MALLOC()</li>
-</ul>
-<p>_MALLOC() 是一个对 kalloc() 函数的封装。对于分配的内存块它预先留下一个简短的头部，存储分配的大小。这种通过 _MALLOC() 进行内存分配的方式，在内核代码中可以在不需要保持对块大小的跟踪的情况下释放。下图是一个通过系统调用的内存分配例子。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE10.png"></p>
-<p>0字节的分配是特例。_MALLOC() 会简单拒绝这样的分配并返回一个空指针。目前尚不知道为什么苹果不返回一个最小大小的分配值，因为分配 0 字节是可以在合理条件下发生的。用大小作为头部有两个缺点，第一为了确定分配的大小，它要求有整数加法，第二当重写导致可执行的情况，它相当于额外的堆元数据。</p>
-<p>当看到 iOS 4 中的 XNU源代码树中的源代码，可以发现 _MALLOC() 中整数加法的危险是显而易见的。正如下面代码所示，苹果并没有设定在 iOS 4 以及 Mac OSX 中的整数溢出，这将会导致许多可能的内核堆错误。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE11.png"></p>
-<p>但是在 iOS 5 的 release 版本之前，苹果研究了可能的整数溢出并关闭了它。代码改为捕捉整数溢出，防止在非阻塞情况下，溢出流返回空指针。但是在阻塞情况下，可以看到触发了内核 panic。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE12.png"></p>
-<p>包含了额外大小字段的内存块头部，对于重写来说，是一个非常有趣的目标，因为通过重写它，内存管理器可以被欺骗去释放错误区域的空闲列表中的内存块。如果大小被重写为一个更小的值，这个块也将会被添加到更小尺寸的块的空闲列表中。这不会导致内存错误，但将会导致内存泄漏，因为稍长的那部分永远不会被覆盖。同样，如果一个较大的尺寸被写入头部，这个块也会被添加到较大尺寸块的自由列表中。这样将会导致内存错误，因为内核分配相信块比实际尺寸大，而这将会导致它在填满时覆盖到相邻的内存。</p>
-<h2 id="内核堆应用数据重写"><a href="#内核堆应用数据重写" class="headerlink" title="内核堆应用数据重写"></a><strong>内核堆应用数据重写</strong></h2><p>考虑到苹果正在硬化空间分配器，一些内存分配器也将不再会有流入的堆元数据可以被覆盖，因此我们将要介绍一种有攻击性且有趣的存储在堆上的内核应用数据。本节的剩余部分，我们将使用内核层的 C++ 对象作为这种有趣的可以被广泛使用的应用数据的示例。</p>
-<p>在 iOS 内核中的 libkern 实现了一个 C++ 运行时子集。它允许内核驱动程序用 C++ 写，其中 IOKit 驱动使用最为频繁。这太有意思了，因为它为 iOS 内核带来了 C++ 类的漏洞。但是对于我们来说，只有在内存布局中的类是有意义的</p>
-<p>下图展示了一个支持 iOS 内核的 C++ 运行时以及继承的基本对象的概述：</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE13.png"></p>
-<p>正如你所看见的，所有的这些类都是由基类 OSObject 分发而来的。接下来我们将要更进一步查看这些类的内存排布。可以看到 OSObject 由一个 vtable ptr 和一个引用计数器组成：</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE14.png"></p>
-<p>vtable ptr 指向内核的数据段，即对象的方法表的存储位置。另一方面，引用计数器要稍微复杂一点。它是一个将 16bit 引用计数存储在低 16 位的 32bit 值。用高 16 位计数对象在集合中的频率，作为第二参考计数。貌似设计的最初目的是用来调试，因为集合计数看起来只能用来验证正常引用计数不低于集合计数。如果是这样，则任何情况都能导致内核 panic 被触发。引用计数器特别的一点是它有一个内置的整数溢出保护。如果引用计数器的值达到65534，则计数器将会被冻结，意味着它将既不会增加，也不会再减少。因此该对象不再可以被破坏，它的内存也不会被释放。</p>
-<p>为了明白 iOS 内核对象重写是如何被利用的，首先需要弄清楚在内存中一个 OSObject 的每个部分被重写的影响。如果可以重写 vtable ptr，则可以改变用于查找对象方法的表中的地址。一旦这个指针被重写了对象上的每一个执行操作，将会导致任意内核代码执行。如果引用计数器被重写，将会允许将引用计数器设置为一个小于现有的实际引用计数的值。同时允许释放之前的对象，这将会导致一种典型用法，即通过悬挂引用引起的任意利用。一旦释放了下一个相同大小的分配内存，则对象的内容将会被完全替换。</p>
-<p>在 iOS 内核中， OSObject 是一个最简单的 C++ 对象。其他对象比如 OSString 则更复杂一些，包含有更多数量或者更多不同类型的属性。进一步分析它们的内存布局也将会因此变得有趣。首先，让我们看看 OSString 对象，它的内存布局如下图所示。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE15.png"></p>
-<p>除了 OSObject 中已知的属性外，flags，length 和 string ptr 三个是新增的。flags 只是控制对象内部的字符串指针是否在其被销毁时释放。这通常只在其他的字段同时被重写时有用。更有用一点的是 length 字段。如果字符串的长度被改变为一个大于原始值的数值，则会导致内核堆信息泄漏或者破坏的内存错误。内存错误是由于长度太大，进而导致长度较小的内存块被添加到错误的内核堆空间的空闲列表里。如果被释放的内存在之后重新分配，则返回的指针将会指向一个实际小于预期的内存块。当内核中的这个小内存块被数据填满时，多余的数据则会重写到相邻的内存中。最后一个字段可以被字符串指针自身重写。同样，该指针被重写，也会导致内核堆信息泄漏或者破坏的内存错误。这种情况下，攻击者可以向特殊空间的空闲列表注入一段任意内存地址，一旦那段内存被内核重新分配然后填满，将导致内存破坏。</p>
-<p>另外一个有意思的重写对象是 OSArray 。它包括了更多的属性，因此也提供了一些新的有趣的重写可能性。让我们看一下 OSArray 对象的内存布局：</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE16.png"></p>
-<p>updateStamp, reserved 以及 fOptions 字段对于重写来说没有什么用处，因为它们不能导致有用的可利用的场景。但是其他的字段都可以。count, capacity 和 capacityIncrement 字段都是由 kalloc() 分配的内存的值。重写这些值将会混淆内存，使得它分配或者再分配错误数量的内存。这种做法将会导致内核堆信息泄漏或者破坏的内存错误。最后一个字段 array ptr 是来自于 OSObject 的对象指针。重写它使得内核可以访问任意构造的对象，从而导致内核里的任意代码执行。另一种攻击是直接重写存储数据的内存块。</p>
-<p>我们对于 重写 iOS 内核的 C++ 对象的内存布局，以及由此产生的可行性做了一个简单概述。记住这些信息，在下一节中，我们将利用这些对象来填充 iOS 内核堆并控制它的布局。</p>
-<h2 id="控制-iOS-内核堆"><a href="#控制-iOS-内核堆" class="headerlink" title="控制 iOS 内核堆"></a><strong>控制 iOS 内核堆</strong></h2><p>要成功利用内核堆错误，则要求将内核堆从一个未知起点通过可控制的方式指向一个可预测的状态。对于这个需求，有很多不同的技术方法。其中最简单的方法叫做堆喷射 ( heap spraying ) ，即使用特殊的数据通过重复触发相同的分配来填充内存，直到内存中很大比例都被这种模式充满（或者触发另一个终止条件）。为了实现堆喷射，要求有一个分配基元来重复执行。由于这种技术早在 2001 年之前就已经开始使用，所以谁是堆喷射的最初发明者尚未可知。</p>
-<p>A.Sotirov 在2007年提出了一个更复杂更好的用来控制堆状态的技术，叫做堆风水。在他的黑帽子谈话中，他描述了如何从未知状态的堆得到被控制的内存布局。首先需要重复分配内存来填充堆中的空洞。一旦所有的空洞都被封闭了，则进一步的分配将会使得彼此相邻。在这些相邻的区域释放内存块，将会在可控位置戳一些洞，使得接下来的分配都在这些洞的位置上。这种方式可以控制堆布局，即溢出缓存区将会正好溢出我们想要溢出的数据。当然，实现一个堆风水技术也要比堆喷射更复杂，它不仅需要一个分配基元，还需要一个回收基元。</p>
-<p>在以前的公开 iOS 内核利用中，分配以及回收基元通常是特殊的，且依赖于实际的开发功能。在此，我们将介绍一个更为通用的方法，可以在没有易被攻击的特殊分配和回收基元的条件下，控制内核堆。</p>
-<p>iOS 内核有一个非常有趣的函数叫做 OSUnserializeXML()。它由许多 IOKit API 中的函数来调用，被用于将对象从用户空间传送到内核空间。这个函数以 XML.plist 的格式 提供一个输入，可以是数字，布尔量，字符串，数据，字典，数组，集合和引用。下面是一个 XML plist 的例子。</p>
-<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>IsThere<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">string</span>&gt;</span>one technique to rule them all?<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>Answer<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>Audience<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">string</span>&gt;</span>meet OSUnserializeXML()<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span></span><br></pre></td></tr></table></figure>
-
-<p>通过构建这样一个 XML.plist 数据包，可以在内存中创建任意对象集合，以及在所有大小和形状中，分配任意数量的不同类型的对象。我们可以用它来控制内核堆，以任何我们喜欢的方式。下表是一个基本对象的内存大小的备忘清单。</p>
-<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE17.png"></p>
-<p>现在我们来看一下如何构造 XML 数据，使其实现堆喷射和堆风水。</p>
-<hr>
-<ul>
-<li>重复分配</li>
-</ul>
-<p>我们首先需要做的是分配任意大小任意数量的内存块。不幸的是，在 XML.plist 数据块内部进行循环是不可能的。但是也没有限制，因此我们可以按照我们的想法分配尽可能多的数据。</p>
-<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisIsOurArray<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">     <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>...<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">     <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span> </span><br></pre></td></tr></table></figure>
-
-<p>这个示例使用一个数组对象，并填充任意数量的字符串。为了做一个内核堆喷射，我们只需要构建一个非常庞大的 XML 数据对象，并传给一个合适的 IOKit API 函数。</p>
-<hr>
-<ul>
-<li>分配受攻击者控制的数据</li>
-</ul>
-<p>在 iOS 内核堆喷射中，使用字符串数据对象的缺点是，不能包含空字节。因此，用完全任意数据结构的字符串对象来实现堆喷射是不可行的。不过我们还有数据对象可以施以援手。由于数据是 base64 编码的，所以它允许创建任意数据结构，没有字符值的限制。另外，内核也支持简单的 16 进制。比如下面的例子。</p>
-<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">       <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisIsOurData<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">data</span>&gt;</span>VGhpcyBJcyBPdXIgRGF0YSB3aXRoIGEgTlVMPgA8+ADw=<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">data</span> <span class="attr">format</span>=<span class="string">&quot;hex&quot;</span>&gt;</span>00112233445566778899aabbccddeeff<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">data</span>&gt;</span>...<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">       <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span> </span><br></pre></td></tr></table></figure>
-
-<p>数据对象类型也更方便，因为它读取到4049块中，因此在解码 XML 时，它在我们感兴趣的内存空间中不分配块。通过结合数组和数据，我们可以执行内核水平的堆喷射。堆风水需要更多的控制条件，接下来我们会提到。</p>
-<hr>
-<ul>
-<li>用应用数据填充任意大小的内存块</li>
-</ul>
-<p>对于堆风水，我们不仅需要分配任意大小的内存块，还需要在重写导致的任意代码执行时，分配被数据填充的任意大小内存块。对于此，我们再次使用数据对象类型（当然也可以使用字典对象类型）。</p>
-<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisArrayAllocates_4_Bytes<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisArrayAllocates_12_Bytes<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisArrayAllocates_28_Bytes<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> &gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">       <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span></span><br></pre></td></tr></table></figure>
-
-<p>在这个示例中，我们使用分配的数组来填充内存，并指向布尔对象。布尔量不会是单独的分配内存的对象。相反，它们会增加一个 global true 对象的引用计数。如果通过重写它向内核提供我们精心设计的对象，则会导致任意代码执行。字典对象类型可用于这种攻击。不同的是，在这个例子中，单个对象指针的乘数为 4，在字典中是 8，因为存储了 键值 (key) 和数值 (value) 对象的指针。</p>
-<hr>
-<ul>
-<li>在分配区域戳洞</li>
-</ul>
-<p>实现对内核堆完全控制的最后一件事是不仅需要分配任意大小的内存块，还需要能够在这些分配中戳任意大小的洞。在字典对象的帮助下，我们可以了解如何在已分配的内存中戳洞，请看下面的示例。</p>
-<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">key</span>&gt;</span>AAAA<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>BBBB<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>CCCC<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>DDDD<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>EEEE<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>CCCC<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span></span><br></pre></td></tr></table></figure>
-
-<p>在这个例子中，可以看到键值 CCCC 被设定了两次。第一次是插入到字典中，第二次更新键值的数值，且前一个值已被破坏。这个数据对象的破坏将会释放该数值对象本身，以及释放由 base64 编码重复的 Z 字符所组成的数值。我们也因此在内存中有效地戳了一个洞。拼图的最后一块是你构建的用于控制堆的 XML.plist 文件是没有问题的。</p>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文中我们首先重演了 iOS 内核堆空间分配，以及不同作者在之前所提到的它的利用。接着，我们介绍了其他的内核堆分配器以及它们所带来的额外的堆元数据。我们讨论了如何重写这些可以被利用的数据，以及提到了这些分配器目前的变化。接下来我们离内核堆元数据结构的利用只有一步之遥，我们讨论了 iOS C++ 内核对象，以及他们在内存结构的布局和在内存中重写他们可以得到什么。最后，我们介绍一种通用的技术，利用 OSUnserializeXML() 可以实现堆喷射和堆风水。这种新技术不仅可以使用任意数据喷射堆来完全控制它的布局，也可以使用有意思的内核应用数据来填充内核堆，该应用数据采用内核级别的 C++ 对象形式，一旦重写，将会允许任意代码执行。</p>
-<hr>
-<h4 id="References"><a href="#References" class="headerlink" title="References"></a>References</h4><p>[1] E. PERLA, M. OLDANI, ”A GUIDE TO KERNEL EXPLOITATION - ATTACKING THE CORE”, 2010, HTTP://WWW.ATTACKINGTHECORE.COM/<br>[2] S. ESSER, ”IOS KERNEL EXPLOITATION, BLACKHAT USA”, 2011 HTTPS://MEDIA.BLACKHAT.COM/BH-US- 11/ESSER/BH_US_11_ESSER_EXPLOITING_THE_IOS_KERNEL_WP.PDF<br>[3] C. MILLER, D. BLAZAKIS, D. DAIZOVI, S. ESSER, V. IOZZO, R.-P. WEINMANN, ”IOS HACKER’S HANDBOOK”, 2012, HTTP://EU.WILEY.COM/WILEYCDA/WILEYTITLE/PRODUCTCD-1118204123,DESCCD- DESCRIPTION.HTML<br>[4] A. SOTIROV, ”HEAP FENG SHUI IN JAVASCRIPT, BLACKHAT EUROPE”, 2007 HTTPS://WWW.BLACKHAT.COM/PRESENTATIONS/BH-USA-07/SOTIROV/WHITEPAPER/BH- USA-07-SOTIROV-WP.PDF</p>
-]]></content>
-      <categories>
-        <category>翻译</category>
       </categories>
   </entry>
   <entry>
@@ -1498,6 +1382,122 @@
 <li>再次声明，为了简化，我并没有说明实际的条件。</li>
 <li>我没有考虑空闲降级的过程，也就是说（10.9）进程可能被移动到空闲频段，以便它们成为空闲退出的候选者。 进程可以使用 PROC_INFO_CALL_DIRTYCONTROL 调用 proc_info 让内核跟踪其状态，当“dirty”和“clean”（空闲）自愿允许被杀死时，寻求保护以免被 kill 。与 vproc 机制（&lt;vproc.h&gt;）一起使用。</li>
 </ol>
+]]></content>
+      <categories>
+        <category>翻译</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>（译）iOS Kernel Heap Armageddon —— Stefan Esser</title>
+    <url>/2016-08-29-%EF%BC%88%E8%AF%91%EF%BC%89iOS-Kernel-Heap-Armageddon-%E2%80%94%E2%80%94-Stefan-Esser.html</url>
+    <content><![CDATA[<h2 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a><strong>摘要</strong></h2><p>你所了解到的关于 iOS 内核堆利用的公开研究，最终都可以归结于对内核堆空间的分配，这个观点由 nemo 首先提出来。总而言之，这种分配将空间内的内核内存分成相同大小的内存块。通过利用重写堆元数据，可以向空间的空闲列表 (freelist) 中注入任意内存区。</p>
+<a id="more"></a>
+
+<p>在本文中，我们将首先概括关于内核堆空间分配的知识，像 nemo 和 Esser 之前所提到的那样。接着，我们将看一看其他的内核堆管理以及 Mac OSX 和 iOS 内核中的内存分配封装函数。在简单介绍这些封装函数之后，我们将进一步介绍这些分配器在最新版本 iOS 5 之后的改变。本文将继续介绍内核层的应用数据重写与直接攻击分配器的空闲列表区之间的差异。最后将展示一种普遍的技术：为了实现内核堆利用，通过执行内核堆喷射 (heap spraying) ，来控制内核堆布局的布局。</p>
+<h2 id="内核堆空间分配"><a href="#内核堆空间分配" class="headerlink" title="内核堆空间分配"></a><strong>内核堆空间分配</strong></h2><p>对于 Mac OSX 以及越狱的苹果手机，有一种可用的工具叫做 zprint ，它可以查看由内核堆分配器注册的内核内存空间。<br>例如：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE1.png"></p>
+<p>这些信息都是由内核 API 函数 host_zone_info 以及 mach_zone_info 提供的。当涉及到构造内核堆利用方法时，这些 API 函数都非常有用，因为它们可以检索每个内核空间的详细信息，比如分配的块的数量，空闲内存块的数量等。Sotirov提到：后者对于控制内核堆（又称为堆风水）技术非常有用。但是根据苹果 iOS 6 的介绍，为了防止内核 API 函数被用于工厂 设备iPhone ，这条路已经被关闭了。现在调用 PE_i_can_haz_debugger 函数，在越狱机以及特殊的苹果内部调试设备、通过苹果可能有的特殊调试虚拟磁盘启动的设备上，只会返回 true。不管怎样，以后的内核堆利用已经不能再依赖这些函数了。</p>
+<p>为了弄清楚内核堆分配器是如何工作的，我们可以通过下面的图表了解，这些图表将会一步步记录其内部的运行。分配器将内核内存分成了许多空间，每个空间包含了同样大小的内存块。它首先在空间内分配一大块内存（通常是一个单独的内存页）。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE2.png"></p>
+<p>所有的内存都在这个空间里，然后它被分为大小相同的块。在这个例子中，每块内存正好为 512bytes 。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE3.png"></p>
+<p>内存管理器用每个空闲内存块的 4 个首字节作为指向另一个内存块的指针。如下图所示：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE4.png"></p>
+<p>空间分配器创建了一个空闲内存块链表，即空闲列表。它是一个后进先出的列表，在链表内，每个元素都指向下一个元素。因为在新的内存页里的第一个空闲内存块首先被添加，正如下图所示，空闲内存将会被反序利用。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE5.png"></p>
+<p>某特定空间的最后一个元素被添加到空闲列表后，当内存被分配给这个特定空间时，该元素也被称为空闲列表头部，同时作为分配内存块标识返回。返回新分配的内存之后，空闲列表中下一个元素的指针从内存块的首4字节读取。指针读取成为新的自由列表头部。它指向的内存块将会因此成为下一个返回值。这个原则由下图证实。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE6.png"></p>
+<p>现在我们知道了堆空间分配的基本机制，接下来我们介绍一下如何利用这种内存分配。我们发现，两个相邻的内存块，第一个为分配缓存区，第二个为空闲内存块，缓存区溢出将会导致堆元数据被覆盖。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE7.png"></p>
+<p>如果攻击者控制了缓存区溢出的数据，那么他完全可以控制空闲列表中指向下一个元素的指针。如上所述的分配将会返回被重写的内存块，使得攻击者控制空闲列表的头部指针。之后分配器将会返回一个被攻击者控制的内存块。在公开的 iOS 内核堆利用中，这种技术被用来返回位于系统调用表中间的一块内存。通过强制内核分配一块内存，并用被攻击者控制的数据覆盖，这种方式可以替换任意系统调用处理程序，并实现任意内核代码执行。</p>
+<p>据了解， iOS 6 的测试版在内核堆分配器中添加了一些内存标签，虽然一般来说，它不阻止攻击空闲列表，但是阻止公开地使用攻击，因为它只允许向内核的空闲列表中注入内存块，但是这样也已经完全在攻击者的控制之下了。</p>
+<h2 id="其他内核堆内存管理和封装器"><a href="#其他内核堆内存管理和封装器" class="headerlink" title="其他内核堆内存管理和封装器"></a><strong>其他内核堆内存管理和封装器</strong></h2><p>Mac OSX 和 iOS 内核包含了许多其他的内核堆内存管理以及封装。下图展示了其中一部分的封装和内存管理。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE8.png"></p>
+<p>在本节中，我们将介绍几个提到的分配器和封装，并讨论它们的属性以及利用。</p>
+<hr>
+<ul>
+<li>kalloc()</li>
+</ul>
+<p>kalloc() 是用来封装 zalloc() 以及 kmem_alloc() 的。它在小分配时使用 zalloc() ，较大的内存请求时使用 kmem_alloc() 。它没有任何额外的堆元数据。因此，需要调用者记住分配的内存大小，当稍后内存使用 kfree() 释放时要求使用相同大小的值。</p>
+<p>存储在内核空间的数据由内存管理器注册一个空间号码，这个号码为 kalloc.xxx ，xxx 即为 kalloc 空间大小。在 iOS 5 中可使用 zprint 工具得到以下空间。(译者注：在OS X 10.11 及以上系统可在 root 权限下使用 zprint | grep kalloc 命令)</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE9.png"></p>
+<p>可以从中发现，这个内核空间是在 8 到 8192 之间的每2倍大小再加上一些额外的空间值，这些额外值的大小是2倍之间可被8整除的数。比如 kalloc.24, kalloc.40, kalloc.48, kalloc.88, kalloc.112, kalloc.192, kalloc.384, kalloc.768, kalloc.1536, kalloc.3072 以及 kalloc.6144 。在 iOS 5 之前，这些 kalloc 空间并不存在，且最小的空间为 16 。这种增加空间的变化可能是为了减少内存浪费，以便使得最常用的分配越来越合适。</p>
+<hr>
+<ul>
+<li>kfree()</li>
+</ul>
+<p>在跳转到下一个封装之前，还有一些值得注意的地方，kfree() 函数。正如之前所提到的那样，调用者需要记住需要释放的块的大小，否则 kfree() 不知道 zfree() 或 kmem_free() 是否被调用，以及需要向内存返回多大的空间。内存管理器除了保持对较大的分配内存块的跟踪之外，对于释放一个比之前所记忆值大的块的尝试将会被忽略。这是一个简单的保护机制防止二次释放。</p>
+<hr>
+<ul>
+<li>_MALLOC()</li>
+</ul>
+<p>_MALLOC() 是一个对 kalloc() 函数的封装。对于分配的内存块它预先留下一个简短的头部，存储分配的大小。这种通过 _MALLOC() 进行内存分配的方式，在内核代码中可以在不需要保持对块大小的跟踪的情况下释放。下图是一个通过系统调用的内存分配例子。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE10.png"></p>
+<p>0字节的分配是特例。_MALLOC() 会简单拒绝这样的分配并返回一个空指针。目前尚不知道为什么苹果不返回一个最小大小的分配值，因为分配 0 字节是可以在合理条件下发生的。用大小作为头部有两个缺点，第一为了确定分配的大小，它要求有整数加法，第二当重写导致可执行的情况，它相当于额外的堆元数据。</p>
+<p>当看到 iOS 4 中的 XNU源代码树中的源代码，可以发现 _MALLOC() 中整数加法的危险是显而易见的。正如下面代码所示，苹果并没有设定在 iOS 4 以及 Mac OSX 中的整数溢出，这将会导致许多可能的内核堆错误。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE11.png"></p>
+<p>但是在 iOS 5 的 release 版本之前，苹果研究了可能的整数溢出并关闭了它。代码改为捕捉整数溢出，防止在非阻塞情况下，溢出流返回空指针。但是在阻塞情况下，可以看到触发了内核 panic。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE12.png"></p>
+<p>包含了额外大小字段的内存块头部，对于重写来说，是一个非常有趣的目标，因为通过重写它，内存管理器可以被欺骗去释放错误区域的空闲列表中的内存块。如果大小被重写为一个更小的值，这个块也将会被添加到更小尺寸的块的空闲列表中。这不会导致内存错误，但将会导致内存泄漏，因为稍长的那部分永远不会被覆盖。同样，如果一个较大的尺寸被写入头部，这个块也会被添加到较大尺寸块的自由列表中。这样将会导致内存错误，因为内核分配相信块比实际尺寸大，而这将会导致它在填满时覆盖到相邻的内存。</p>
+<h2 id="内核堆应用数据重写"><a href="#内核堆应用数据重写" class="headerlink" title="内核堆应用数据重写"></a><strong>内核堆应用数据重写</strong></h2><p>考虑到苹果正在硬化空间分配器，一些内存分配器也将不再会有流入的堆元数据可以被覆盖，因此我们将要介绍一种有攻击性且有趣的存储在堆上的内核应用数据。本节的剩余部分，我们将使用内核层的 C++ 对象作为这种有趣的可以被广泛使用的应用数据的示例。</p>
+<p>在 iOS 内核中的 libkern 实现了一个 C++ 运行时子集。它允许内核驱动程序用 C++ 写，其中 IOKit 驱动使用最为频繁。这太有意思了，因为它为 iOS 内核带来了 C++ 类的漏洞。但是对于我们来说，只有在内存布局中的类是有意义的</p>
+<p>下图展示了一个支持 iOS 内核的 C++ 运行时以及继承的基本对象的概述：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE13.png"></p>
+<p>正如你所看见的，所有的这些类都是由基类 OSObject 分发而来的。接下来我们将要更进一步查看这些类的内存排布。可以看到 OSObject 由一个 vtable ptr 和一个引用计数器组成：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE14.png"></p>
+<p>vtable ptr 指向内核的数据段，即对象的方法表的存储位置。另一方面，引用计数器要稍微复杂一点。它是一个将 16bit 引用计数存储在低 16 位的 32bit 值。用高 16 位计数对象在集合中的频率，作为第二参考计数。貌似设计的最初目的是用来调试，因为集合计数看起来只能用来验证正常引用计数不低于集合计数。如果是这样，则任何情况都能导致内核 panic 被触发。引用计数器特别的一点是它有一个内置的整数溢出保护。如果引用计数器的值达到65534，则计数器将会被冻结，意味着它将既不会增加，也不会再减少。因此该对象不再可以被破坏，它的内存也不会被释放。</p>
+<p>为了明白 iOS 内核对象重写是如何被利用的，首先需要弄清楚在内存中一个 OSObject 的每个部分被重写的影响。如果可以重写 vtable ptr，则可以改变用于查找对象方法的表中的地址。一旦这个指针被重写了对象上的每一个执行操作，将会导致任意内核代码执行。如果引用计数器被重写，将会允许将引用计数器设置为一个小于现有的实际引用计数的值。同时允许释放之前的对象，这将会导致一种典型用法，即通过悬挂引用引起的任意利用。一旦释放了下一个相同大小的分配内存，则对象的内容将会被完全替换。</p>
+<p>在 iOS 内核中， OSObject 是一个最简单的 C++ 对象。其他对象比如 OSString 则更复杂一些，包含有更多数量或者更多不同类型的属性。进一步分析它们的内存布局也将会因此变得有趣。首先，让我们看看 OSString 对象，它的内存布局如下图所示。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE15.png"></p>
+<p>除了 OSObject 中已知的属性外，flags，length 和 string ptr 三个是新增的。flags 只是控制对象内部的字符串指针是否在其被销毁时释放。这通常只在其他的字段同时被重写时有用。更有用一点的是 length 字段。如果字符串的长度被改变为一个大于原始值的数值，则会导致内核堆信息泄漏或者破坏的内存错误。内存错误是由于长度太大，进而导致长度较小的内存块被添加到错误的内核堆空间的空闲列表里。如果被释放的内存在之后重新分配，则返回的指针将会指向一个实际小于预期的内存块。当内核中的这个小内存块被数据填满时，多余的数据则会重写到相邻的内存中。最后一个字段可以被字符串指针自身重写。同样，该指针被重写，也会导致内核堆信息泄漏或者破坏的内存错误。这种情况下，攻击者可以向特殊空间的空闲列表注入一段任意内存地址，一旦那段内存被内核重新分配然后填满，将导致内存破坏。</p>
+<p>另外一个有意思的重写对象是 OSArray 。它包括了更多的属性，因此也提供了一些新的有趣的重写可能性。让我们看一下 OSArray 对象的内存布局：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE16.png"></p>
+<p>updateStamp, reserved 以及 fOptions 字段对于重写来说没有什么用处，因为它们不能导致有用的可利用的场景。但是其他的字段都可以。count, capacity 和 capacityIncrement 字段都是由 kalloc() 分配的内存的值。重写这些值将会混淆内存，使得它分配或者再分配错误数量的内存。这种做法将会导致内核堆信息泄漏或者破坏的内存错误。最后一个字段 array ptr 是来自于 OSObject 的对象指针。重写它使得内核可以访问任意构造的对象，从而导致内核里的任意代码执行。另一种攻击是直接重写存储数据的内存块。</p>
+<p>我们对于 重写 iOS 内核的 C++ 对象的内存布局，以及由此产生的可行性做了一个简单概述。记住这些信息，在下一节中，我们将利用这些对象来填充 iOS 内核堆并控制它的布局。</p>
+<h2 id="控制-iOS-内核堆"><a href="#控制-iOS-内核堆" class="headerlink" title="控制 iOS 内核堆"></a><strong>控制 iOS 内核堆</strong></h2><p>要成功利用内核堆错误，则要求将内核堆从一个未知起点通过可控制的方式指向一个可预测的状态。对于这个需求，有很多不同的技术方法。其中最简单的方法叫做堆喷射 ( heap spraying ) ，即使用特殊的数据通过重复触发相同的分配来填充内存，直到内存中很大比例都被这种模式充满（或者触发另一个终止条件）。为了实现堆喷射，要求有一个分配基元来重复执行。由于这种技术早在 2001 年之前就已经开始使用，所以谁是堆喷射的最初发明者尚未可知。</p>
+<p>A.Sotirov 在2007年提出了一个更复杂更好的用来控制堆状态的技术，叫做堆风水。在他的黑帽子谈话中，他描述了如何从未知状态的堆得到被控制的内存布局。首先需要重复分配内存来填充堆中的空洞。一旦所有的空洞都被封闭了，则进一步的分配将会使得彼此相邻。在这些相邻的区域释放内存块，将会在可控位置戳一些洞，使得接下来的分配都在这些洞的位置上。这种方式可以控制堆布局，即溢出缓存区将会正好溢出我们想要溢出的数据。当然，实现一个堆风水技术也要比堆喷射更复杂，它不仅需要一个分配基元，还需要一个回收基元。</p>
+<p>在以前的公开 iOS 内核利用中，分配以及回收基元通常是特殊的，且依赖于实际的开发功能。在此，我们将介绍一个更为通用的方法，可以在没有易被攻击的特殊分配和回收基元的条件下，控制内核堆。</p>
+<p>iOS 内核有一个非常有趣的函数叫做 OSUnserializeXML()。它由许多 IOKit API 中的函数来调用，被用于将对象从用户空间传送到内核空间。这个函数以 XML.plist 的格式 提供一个输入，可以是数字，布尔量，字符串，数据，字典，数组，集合和引用。下面是一个 XML plist 的例子。</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>IsThere<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">string</span>&gt;</span>one technique to rule them all?<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>Answer<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>Audience<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">string</span>&gt;</span>meet OSUnserializeXML()<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>通过构建这样一个 XML.plist 数据包，可以在内存中创建任意对象集合，以及在所有大小和形状中，分配任意数量的不同类型的对象。我们可以用它来控制内核堆，以任何我们喜欢的方式。下表是一个基本对象的内存大小的备忘清单。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE17.png"></p>
+<p>现在我们来看一下如何构造 XML 数据，使其实现堆喷射和堆风水。</p>
+<hr>
+<ul>
+<li>重复分配</li>
+</ul>
+<p>我们首先需要做的是分配任意大小任意数量的内存块。不幸的是，在 XML.plist 数据块内部进行循环是不可能的。但是也没有限制，因此我们可以按照我们的想法分配尽可能多的数据。</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisIsOurArray<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">     <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>...<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">     <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span> </span><br></pre></td></tr></table></figure>
+
+<p>这个示例使用一个数组对象，并填充任意数量的字符串。为了做一个内核堆喷射，我们只需要构建一个非常庞大的 XML 数据对象，并传给一个合适的 IOKit API 函数。</p>
+<hr>
+<ul>
+<li>分配受攻击者控制的数据</li>
+</ul>
+<p>在 iOS 内核堆喷射中，使用字符串数据对象的缺点是，不能包含空字节。因此，用完全任意数据结构的字符串对象来实现堆喷射是不可行的。不过我们还有数据对象可以施以援手。由于数据是 base64 编码的，所以它允许创建任意数据结构，没有字符值的限制。另外，内核也支持简单的 16 进制。比如下面的例子。</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">       <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisIsOurData<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">data</span>&gt;</span>VGhpcyBJcyBPdXIgRGF0YSB3aXRoIGEgTlVMPgA8+ADw=<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">data</span> <span class="attr">format</span>=<span class="string">&quot;hex&quot;</span>&gt;</span>00112233445566778899aabbccddeeff<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">data</span>&gt;</span>...<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">       <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span> </span><br></pre></td></tr></table></figure>
+
+<p>数据对象类型也更方便，因为它读取到4049块中，因此在解码 XML 时，它在我们感兴趣的内存空间中不分配块。通过结合数组和数据，我们可以执行内核水平的堆喷射。堆风水需要更多的控制条件，接下来我们会提到。</p>
+<hr>
+<ul>
+<li>用应用数据填充任意大小的内存块</li>
+</ul>
+<p>对于堆风水，我们不仅需要分配任意大小的内存块，还需要在重写导致的任意代码执行时，分配被数据填充的任意大小内存块。对于此，我们再次使用数据对象类型（当然也可以使用字典对象类型）。</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisArrayAllocates_4_Bytes<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisArrayAllocates_12_Bytes<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisArrayAllocates_28_Bytes<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> &gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">       <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>在这个示例中，我们使用分配的数组来填充内存，并指向布尔对象。布尔量不会是单独的分配内存的对象。相反，它们会增加一个 global true 对象的引用计数。如果通过重写它向内核提供我们精心设计的对象，则会导致任意代码执行。字典对象类型可用于这种攻击。不同的是，在这个例子中，单个对象指针的乘数为 4，在字典中是 8，因为存储了 键值 (key) 和数值 (value) 对象的指针。</p>
+<hr>
+<ul>
+<li>在分配区域戳洞</li>
+</ul>
+<p>实现对内核堆完全控制的最后一件事是不仅需要分配任意大小的内存块，还需要能够在这些分配中戳任意大小的洞。在字典对象的帮助下，我们可以了解如何在已分配的内存中戳洞，请看下面的示例。</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">key</span>&gt;</span>AAAA<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>BBBB<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>CCCC<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>DDDD<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>EEEE<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>CCCC<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>在这个例子中，可以看到键值 CCCC 被设定了两次。第一次是插入到字典中，第二次更新键值的数值，且前一个值已被破坏。这个数据对象的破坏将会释放该数值对象本身，以及释放由 base64 编码重复的 Z 字符所组成的数值。我们也因此在内存中有效地戳了一个洞。拼图的最后一块是你构建的用于控制堆的 XML.plist 文件是没有问题的。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文中我们首先重演了 iOS 内核堆空间分配，以及不同作者在之前所提到的它的利用。接着，我们介绍了其他的内核堆分配器以及它们所带来的额外的堆元数据。我们讨论了如何重写这些可以被利用的数据，以及提到了这些分配器目前的变化。接下来我们离内核堆元数据结构的利用只有一步之遥，我们讨论了 iOS C++ 内核对象，以及他们在内存结构的布局和在内存中重写他们可以得到什么。最后，我们介绍一种通用的技术，利用 OSUnserializeXML() 可以实现堆喷射和堆风水。这种新技术不仅可以使用任意数据喷射堆来完全控制它的布局，也可以使用有意思的内核应用数据来填充内核堆，该应用数据采用内核级别的 C++ 对象形式，一旦重写，将会允许任意代码执行。</p>
+<hr>
+<h4 id="References"><a href="#References" class="headerlink" title="References"></a>References</h4><p>[1] E. PERLA, M. OLDANI, ”A GUIDE TO KERNEL EXPLOITATION - ATTACKING THE CORE”, 2010, HTTP://WWW.ATTACKINGTHECORE.COM/<br>[2] S. ESSER, ”IOS KERNEL EXPLOITATION, BLACKHAT USA”, 2011 HTTPS://MEDIA.BLACKHAT.COM/BH-US- 11/ESSER/BH_US_11_ESSER_EXPLOITING_THE_IOS_KERNEL_WP.PDF<br>[3] C. MILLER, D. BLAZAKIS, D. DAIZOVI, S. ESSER, V. IOZZO, R.-P. WEINMANN, ”IOS HACKER’S HANDBOOK”, 2012, HTTP://EU.WILEY.COM/WILEYCDA/WILEYTITLE/PRODUCTCD-1118204123,DESCCD- DESCRIPTION.HTML<br>[4] A. SOTIROV, ”HEAP FENG SHUI IN JAVASCRIPT, BLACKHAT EUROPE”, 2007 HTTPS://WWW.BLACKHAT.COM/PRESENTATIONS/BH-USA-07/SOTIROV/WHITEPAPER/BH- USA-07-SOTIROV-WP.PDF</p>
 ]]></content>
       <categories>
         <category>翻译</category>

@@ -26,7 +26,7 @@
   <meta name="description" content="基础知识提要对于 Objective-C 对象来讲，手动内存管理主要是通过以下方法来进行的：  retain ：　　 　使得对象的引用计数+1 release：　　　使得对象的引用计数-1 autorelease：　使得对象的引用计数在 autorelease pool 释放的时候再-1 dealloc：　　　当对象的引用计数为0的时候自动调用，表明对象被释放  因为只有 OC 对象是分配在堆上的">
 <meta property="og:type" content="article">
 <meta property="og:title" content="ARC 是如何进行内存管理的">
-<meta property="og:url" content="https://harpersu00.github.io/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84/index.html">
+<meta property="og:url" content="https://harpersu00.github.io/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84.html">
 <meta property="og:site_name" content="harpersu00&#39;s Blog">
 <meta property="og:description" content="基础知识提要对于 Objective-C 对象来讲，手动内存管理主要是通过以下方法来进行的：  retain ：　　 　使得对象的引用计数+1 release：　　　使得对象的引用计数-1 autorelease：　使得对象的引用计数在 autorelease pool 释放的时候再-1 dealloc：　　　当对象的引用计数为0的时候自动调用，表明对象被释放  因为只有 OC 对象是分配在堆上的">
 <meta property="og:locale" content="zh_CN">
@@ -35,7 +35,7 @@
 <meta property="article:author" content="harpersu00">
 <meta name="twitter:card" content="summary">
 
-<link rel="canonical" href="https://harpersu00.github.io/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84/">
+<link rel="canonical" href="https://harpersu00.github.io/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84.html">
 
 
 <script id="page-configurations">
@@ -191,7 +191,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84/">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84.html">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar1.JPG">
@@ -362,7 +362,7 @@
   </li>
   <li class="post-copyright-link">
     <strong>本文链接：</strong>
-    <a href="https://harpersu00.github.io/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84/" title="ARC 是如何进行内存管理的">https://harpersu00.github.io/2016-12-07-ARC-是如何进行内存管理的/</a>
+    <a href="https://harpersu00.github.io/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84.html" title="ARC 是如何进行内存管理的">https://harpersu00.github.io/2016-12-07-ARC-是如何进行内存管理的.html</a>
   </li>
   <li class="post-copyright-license">
     <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
@@ -379,11 +379,11 @@
         
     <div class="post-nav">
       <div class="post-nav-item">
-    <a href="/2016-11-09-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend/" rel="prev" title="通过汇编解读 objc_msgSend">
+    <a href="/2016-11-09-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend.html" rel="prev" title="通过汇编解读 objc_msgSend">
       <i class="fa fa-chevron-left"></i> 通过汇编解读 objc_msgSend
     </a></div>
       <div class="post-nav-item">
-    <a href="/2016-12-16-%EF%BC%88%E8%AF%91%EF%BC%89Analysis-and-exploitation-of-Pegasus-kernel-vulnerabilities-(CVE-2016-4655--CVE-2016-4656)/" rel="next" title="（译）Analysis and exploitation of Pegasus kernel vulnerabilities (CVE-2016-4655 / CVE-2016-4656)">
+    <a href="/2016-12-16-%EF%BC%88%E8%AF%91%EF%BC%89Analysis-and-exploitation-of-Pegasus-kernel-vulnerabilities-(CVE-2016-4655--CVE-2016-4656).html" rel="next" title="（译）Analysis and exploitation of Pegasus kernel vulnerabilities (CVE-2016-4655 / CVE-2016-4656)">
       （译）Analysis and exploitation of Pegasus kernel vulnerabilities (CVE-2016-4655 / CVE-2016-4656) <i class="fa fa-chevron-right"></i>
     </a></div>
     </div>
@@ -500,7 +500,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
                   &emsp;09-19
                 </time>
-                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81.html" title="GOT 表劫持">GOT 表劫持</a>
                 <br>
             </li>
           
@@ -508,7 +508,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
                   &emsp;05-09
                 </time>
-                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks.html" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
                 <br>
             </li>
           
@@ -516,7 +516,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
                   &emsp;04-12
                 </time>
-                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84.html" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
                 <br>
             </li>
           
@@ -524,7 +524,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
                   &emsp;03-23
                 </time>
-                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx.html" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
                 <br>
             </li>
           
@@ -532,7 +532,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
                   &emsp;03-07
                 </time>
-                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx.html" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
                 <br>
             </li>
           

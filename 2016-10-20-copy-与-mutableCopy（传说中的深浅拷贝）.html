@@ -26,7 +26,7 @@
   <meta name="description" content="概念对象拷贝有两种方式：浅拷贝和深拷贝。 浅拷贝(shallow copy)，并不拷贝对象本身，仅仅是拷贝指向对象的指针。如果 B &#x3D; [A 浅拷贝]，则 A、B 两个对象中都保存的同一个指针，如果 A 通过这个指针改变了指针指向的对象，那么 B 指针指向的对象也就随之改变了； 深拷贝是直接拷贝整个对象到另一块内存中，开辟新的地址来存储，两个对象至此一别，再无关联。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="copy 与 mutableCopy（传说中的深浅拷贝）">
-<meta property="og:url" content="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/index.html">
+<meta property="og:url" content="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89.html">
 <meta property="og:site_name" content="harpersu00&#39;s Blog">
 <meta property="og:description" content="概念对象拷贝有两种方式：浅拷贝和深拷贝。 浅拷贝(shallow copy)，并不拷贝对象本身，仅仅是拷贝指向对象的指针。如果 B &#x3D; [A 浅拷贝]，则 A、B 两个对象中都保存的同一个指针，如果 A 通过这个指针改变了指针指向的对象，那么 B 指针指向的对象也就随之改变了； 深拷贝是直接拷贝整个对象到另一块内存中，开辟新的地址来存储，两个对象至此一别，再无关联。">
 <meta property="og:locale" content="zh_CN">
@@ -40,7 +40,7 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https://harpersu00.github.io/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSString.png">
 
-<link rel="canonical" href="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/">
+<link rel="canonical" href="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89.html">
 
 
 <script id="page-configurations">
@@ -196,7 +196,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89.html">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar1.JPG">
@@ -345,7 +345,7 @@
   </li>
   <li class="post-copyright-link">
     <strong>本文链接：</strong>
-    <a href="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/" title="copy 与 mutableCopy（传说中的深浅拷贝）">https://harpersu00.github.io/2016-10-20-copy-与-mutableCopy（传说中的深浅拷贝）/</a>
+    <a href="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89.html" title="copy 与 mutableCopy（传说中的深浅拷贝）">https://harpersu00.github.io/2016-10-20-copy-与-mutableCopy（传说中的深浅拷贝）.html</a>
   </li>
   <li class="post-copyright-license">
     <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
@@ -362,11 +362,11 @@
         
     <div class="post-nav">
       <div class="post-nav-item">
-    <a href="/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83/" rel="prev" title="栈·参数存储排布">
+    <a href="/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83.html" rel="prev" title="栈·参数存储排布">
       <i class="fa fa-chevron-left"></i> 栈·参数存储排布
     </a></div>
       <div class="post-nav-item">
-    <a href="/2016-11-09-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend/" rel="next" title="通过汇编解读 objc_msgSend">
+    <a href="/2016-11-09-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend.html" rel="next" title="通过汇编解读 objc_msgSend">
       通过汇编解读 objc_msgSend <i class="fa fa-chevron-right"></i>
     </a></div>
     </div>
@@ -483,7 +483,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
                   &emsp;09-19
                 </time>
-                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81.html" title="GOT 表劫持">GOT 表劫持</a>
                 <br>
             </li>
           
@@ -491,7 +491,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
                   &emsp;05-09
                 </time>
-                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks.html" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
                 <br>
             </li>
           
@@ -499,7 +499,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
                   &emsp;04-12
                 </time>
-                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84.html" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
                 <br>
             </li>
           
@@ -507,7 +507,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
                   &emsp;03-23
                 </time>
-                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx.html" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
                 <br>
             </li>
           
@@ -515,7 +515,7 @@
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
                   &emsp;03-07
                 </time>
-                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx.html" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
                 <br>
             </li>
           

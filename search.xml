@@ -2,7 +2,7 @@
 <search>
   <entry>
     <title>AFNetworking 3.1.0 第一部分</title>
-    <url>/2016-09-06-AFNetworking-3.1.0-%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86/</url>
+    <url>/2016-09-06-AFNetworking-3.1.0-%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86.html</url>
     <content><![CDATA[<h2 id="写在前面"><a href="#写在前面" class="headerlink" title="写在前面"></a><strong>写在前面</strong></h2><p>我主要根据作者polobymulberry的博客<a href="http://www.cnblogs.com/polobymulberry/category/785705.html">AFNetworking源码阅读系列</a>来学习，因为我有很多知识不懂，所以有些地方可能会记录得过于繁琐。原作者的大体流程和记录不变，某些知识点会有自己的补充。在此非常感谢博客作者polobymulberry的分享。</p>
 <a id="more"></a>
 
@@ -81,7 +81,7 @@
   </entry>
   <entry>
     <title>property 中的常用关键字分析</title>
-    <url>/2016-09-08-@property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/</url>
+    <url>/2016-09-08-@property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90.html</url>
     <content><![CDATA[<h2 id="栈与堆"><a href="#栈与堆" class="headerlink" title="栈与堆"></a>栈与堆</h2><p>首先，我们需要知道：为什么<strong>只有Objective-C对象需要进行内存管理</strong>，而其它非对象类型（如基本数据类型）不需要我们来管理呢？</p>
 <blockquote>
 <p>因为： Objective-C 的对象在内存中是以堆的方式分配空间的</p>
@@ -189,7 +189,7 @@
   </entry>
   <entry>
     <title>C语言编程题（2016年360笔试习题之病毒）</title>
-    <url>/2016-09-21-C%E8%AF%AD%E8%A8%80%E7%BC%96%E7%A8%8B%E9%A2%98%EF%BC%882016%E5%B9%B4360%E7%AC%94%E8%AF%95%E4%B9%A0%E9%A2%98%E4%B9%8B%E7%97%85%E6%AF%92%EF%BC%89/</url>
+    <url>/2016-09-21-C%E8%AF%AD%E8%A8%80%E7%BC%96%E7%A8%8B%E9%A2%98%EF%BC%882016%E5%B9%B4360%E7%AC%94%E8%AF%95%E4%B9%A0%E9%A2%98%E4%B9%8B%E7%97%85%E6%AF%92%EF%BC%89.html</url>
     <content><![CDATA[<h2 id="题目（编程题：病毒）"><a href="#题目（编程题：病毒）" class="headerlink" title="题目（编程题：病毒）"></a>题目（编程题：病毒）</h2><p>小B最近对破解和程序攻击产生了兴趣，她迷上了病毒，然后可怕的事情发生了。不知道什么原因，可能是小B的技术水平还不够高，小B编写的病毒程序在攻击一个服务器时出现了问题。尽管成功的入侵了服务器，但并没有按照期望的方式发挥作用。</p>
 <p>小B的目的很简单：控制服务器内存区域，试图在内存中装入从1到n之间的n个自然数，以覆盖内存区域。可能是小B对编程理解上的问题，病毒似乎没有完全成功。可能是由于保护机制的原因，内存写入只接受二进制的形式，所以十进制表达中除了0和1之外的其他值都没有成功写入内存。小B希望知道，究竟有多少数成功的写入了服务器的内存！</p>
 <a id="more"></a>
@@ -242,7 +242,7 @@
   </entry>
   <entry>
     <title>栈·参数存储排布</title>
-    <url>/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83/</url>
+    <url>/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83.html</url>
     <content><![CDATA[<h2 id="基础提要：栈结构"><a href="#基础提要：栈结构" class="headerlink" title="基础提要：栈结构"></a>基础提要：栈结构</h2><p>ARM内存中的栈区域是满递减的，由高地址向低地址增长，SP指针始终指向最后一个压入栈的地址，即栈顶地址。如图所示：</p>
 <p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE1.png"></p>
 <a id="more"></a>
@@ -310,7 +310,7 @@
   </entry>
   <entry>
     <title>Hook 原理之 Method Swizzling</title>
-    <url>/2017-03-01-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-Method-Swizzling/</url>
+    <url>/2017-03-01-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-Method-Swizzling.html</url>
     <content><![CDATA[<h2 id="基础知识提要"><a href="#基础知识提要" class="headerlink" title="基础知识提要"></a>基础知识提要</h2><p>Method Swizzling 其实就是利用了 <code>runtime</code> 机制，替换了调用的方法（method）的实现（imp）。很多人一看到有 runtime 就头疼了，跟 runloop 一样，由于被太多大牛提起，反而心生胆怯，觉得是一个很难理解的机制。</p>
 <p>runtime 运行时机制，主要是在 OC 和 C 语言（或汇编语言）之间架了一座桥梁。比如我之前的文章 <a href="https://amywushu.github.io/2016/11/09/%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend.html">通过汇编解读 objc_msgSend</a> 中提到的调用方法的本质是发送消息，方法调用是 OC 中的，而消息发送，找到方法的入口则是 C （或汇编）中的。这其中转换的过程，就是 runtime。</p>
 <a id="more"></a>
@@ -397,7 +397,7 @@
   </entry>
   <entry>
     <title>Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</title>
-    <url>/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/</url>
+    <url>/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx.html</url>
     <content><![CDATA[<h2 id="前情提要"><a href="#前情提要" class="headerlink" title="前情提要"></a>前情提要</h2><p>在上一篇博文“<a href="https://amywushu.github.io/2017/03/07/%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx.html">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>”中，我分析了 MSHookMessageEx 以前的老代码，也就是 iOS5 版本。那么在这一篇文中，我将通过逆向来分析新版的 MSHookMessageEx。</p>
 <p>两个版本的大部分代码和流程都差不多，主要区别在于，当 hook 的方法不是本类方法的时候，老版本的代码是通过嵌入机器码来获取 IMP，新版本是通过构建 trampoline（蹦床）页来获取 IMP。</p>
 <a id="more"></a>
@@ -477,7 +477,7 @@
   </entry>
   <entry>
     <title>GOT 表劫持</title>
-    <url>/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/</url>
+    <url>/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81.html</url>
     <content><![CDATA[<h2 id="链接"><a href="#链接" class="headerlink" title="链接"></a>链接</h2><p>在程序从源代码到生成最终的可执行程序，会大体经历编译、汇编、链接三个阶段。编译将源代码转换成为汇编语言（例如.s后缀的文件），汇编阶段将汇编语言转换成机器码（例如.o文件）。链接阶段会合并多个目标文件（上一阶段生成的.o）以及静（动）态链接库中的代码数据等信息，修复文件之间的引用关系，最后生成可执行程序。</p>
 <a id="more"></a>
 
@@ -532,7 +532,7 @@
   </entry>
   <entry>
     <title>（译）iOS Kernel Heap Armageddon —— Stefan Esser</title>
-    <url>/2016-08-29-%EF%BC%88%E8%AF%91%EF%BC%89iOS-Kernel-Heap-Armageddon-%E2%80%94%E2%80%94-Stefan-Esser/</url>
+    <url>/2016-08-29-%EF%BC%88%E8%AF%91%EF%BC%89iOS-Kernel-Heap-Armageddon-%E2%80%94%E2%80%94-Stefan-Esser.html</url>
     <content><![CDATA[<h2 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a><strong>摘要</strong></h2><p>你所了解到的关于 iOS 内核堆利用的公开研究，最终都可以归结于对内核堆空间的分配，这个观点由 nemo 首先提出来。总而言之，这种分配将空间内的内核内存分成相同大小的内存块。通过利用重写堆元数据，可以向空间的空闲列表 (freelist) 中注入任意内存区。</p>
 <a id="more"></a>
 
@@ -648,7 +648,7 @@
   </entry>
   <entry>
     <title>copy 与 mutableCopy（传说中的深浅拷贝）</title>
-    <url>/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/</url>
+    <url>/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89.html</url>
     <content><![CDATA[<h2 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h2><p>对象拷贝有两种方式：浅拷贝和深拷贝。</p>
 <p>浅拷贝(shallow copy)，并不拷贝对象本身，<strong>仅仅是拷贝指向对象的指针</strong>。<br>如果 <code>B = [A 浅拷贝]</code>，则 A、B 两个对象中都保存的同一个指针，如果 A 通过这个指针改变了指针指向的对象，那么 B 指针指向的对象也就随之改变了；</p>
 <p>深拷贝是直接<strong>拷贝整个对象到另一块内存中</strong>，开辟新的地址来存储，两个对象至此一别，再无关联。</p>
@@ -740,7 +740,7 @@
   </entry>
   <entry>
     <title>通过汇编解读 objc_msgSend</title>
-    <url>/2016-11-09-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend/</url>
+    <url>/2016-11-09-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend.html</url>
     <content><![CDATA[<h2 id="基础知识提要"><a href="#基础知识提要" class="headerlink" title="基础知识提要"></a>基础知识提要</h2><p>调用方法，本质是发送消息。比如：</p>
 <table><tbody><tr><td class="code"><pre><div class="line">Person *p = [[Person alloc] init];</div><div class="line">[p test];</div><div class="line"></div><div class="line"><span class="comment">// 本质是发送消息： clang -rewrite-objc main.m</span></div><div class="line">((<span class="keyword">void</span> (*)(<span class="keyword">id</span>, SEL))(<span class="keyword">void</span> *)objc_msgSend)((<span class="keyword">id</span>)p, sel_registerName(<span class="string">"test"</span>));</div></pre></td></tr></tbody></table>
 
@@ -870,7 +870,7 @@
   </entry>
   <entry>
     <title>解读 Mach-O 文件格式</title>
-    <url>/2017-02-21-%E8%A7%A3%E8%AF%BB-Mach-O-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F/</url>
+    <url>/2017-02-21-%E8%A7%A3%E8%AF%BB-Mach-O-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F.html</url>
     <content><![CDATA[<h2 id="框架图"><a href="#框架图" class="headerlink" title="框架图"></a>框架图</h2><p><img src="/images/2017-02-21-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-%E8%A7%A3%E8%AF%BB-Mach-O-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F/mach-o.png"></p>
 <a id="more"></a>
 
@@ -969,7 +969,7 @@
   </entry>
   <entry>
     <title>Hook 原理之 fishhook 源码解析</title>
-    <url>/2017-02-27-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-fishhook-%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/</url>
+    <url>/2017-02-27-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-fishhook-%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90.html</url>
     <content><![CDATA[<h2 id="基础知识提要"><a href="#基础知识提要" class="headerlink" title="基础知识提要"></a>基础知识提要</h2><p>各种表在 Mach-O 文件中，是位于 Section 数据之后的一些记录数据。下面介绍本文会用到的几个表。</p>
 <p>懒加载（lazy load），又叫做延迟加载。在实际需要使用该符号（或资源）的时候，该符号才会通过 dyld 中的 <code>dyld_stub_binder</code> 来进行加载。与之相对的是非懒加载（non-lazy load），这些符号在动态链接库绑定的时候，就会被加载。</p>
 <a id="more"></a>
@@ -1051,7 +1051,7 @@
   </entry>
   <entry>
     <title>Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</title>
-    <url>/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/</url>
+    <url>/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx.html</url>
     <content><![CDATA[<h2 id="前情提要"><a href="#前情提要" class="headerlink" title="前情提要"></a>前情提要</h2><p>CydiaSubstrate，作者为 Jay Freeman(saurik)，在iOS7越狱之前名为 MobileSubstrate，因此 CydiaSubstrate 框架中的大部分函数仍以 <code>MS</code> 为前缀。</p>
 <blockquote>
 <p>在用 theos 开发中，control 文件中的 depend 字段依赖库为 mobilesubstrate，该工具是实现 CydiaSubstrate 注入的关键所在，整个工具主要分为 MobileHooker、MobileLoader 以及 Safe mode 三部分。</p>
@@ -1206,7 +1206,7 @@
   </entry>
   <entry>
     <title>Objective-C 中的类结构</title>
-    <url>/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/</url>
+    <url>/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84.html</url>
     <content><![CDATA[<h2 id="引子"><a href="#引子" class="headerlink" title="引子"></a>引子</h2><p>我们已知，OC 中的类也是对象，且对象和类实际上是以结构体的形式存在的（可通过 clang 转换）。在 OC 运行时可以修改对象的方法和属性。那么，这些结论背后的机理是什么呢？</p>
 <p>在这篇文章中，我将从类的内存布局以及内存结构方面入手，通过调试 objc runtime 的源代码来厘清上述问题（源代码版本为 objc4-706）。</p>
 <a id="more"></a>
@@ -1311,7 +1311,7 @@
   </entry>
   <entry>
     <title>（译）Handling low memory conditions in iOS and Mavericks</title>
-    <url>/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/</url>
+    <url>/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks.html</url>
     <content><![CDATA[<blockquote>
 <p>翻译自 Jonathan Levin’s site   原文链接：<a href="http://newosxbook.com/articles/MemoryPressure.html">http://newosxbook.com/articles/MemoryPressure.html</a></p>
 </blockquote>
@@ -1505,7 +1505,7 @@
   </entry>
   <entry>
     <title>ARC 是如何进行内存管理的</title>
-    <url>/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84/</url>
+    <url>/2016-12-07-ARC-%E6%98%AF%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E7%9A%84.html</url>
     <content><![CDATA[<h2 id="基础知识提要"><a href="#基础知识提要" class="headerlink" title="基础知识提要"></a>基础知识提要</h2><p>对于 Objective-C 对象来讲，手动内存管理主要是通过以下方法来进行的：</p>
 <ul>
 <li>retain ：　　 　使得对象的引用计数+1</li>
@@ -1619,7 +1619,7 @@
   </entry>
   <entry>
     <title>（译）Analysis and exploitation of Pegasus kernel vulnerabilities (CVE-2016-4655 / CVE-2016-4656)</title>
-    <url>/2016-12-16-%EF%BC%88%E8%AF%91%EF%BC%89Analysis-and-exploitation-of-Pegasus-kernel-vulnerabilities-(CVE-2016-4655--CVE-2016-4656)/</url>
+    <url>/2016-12-16-%EF%BC%88%E8%AF%91%EF%BC%89Analysis-and-exploitation-of-Pegasus-kernel-vulnerabilities-(CVE-2016-4655--CVE-2016-4656).html</url>
     <content><![CDATA[<blockquote>
 <p>翻译自 jndok’s blog   原文链接：<a href="http://jndok.github.io/2016/10/04/pegasus-writeup/">http://jndok.github.io/2016/10/04/pegasus-writeup/</a></p>
 </blockquote>

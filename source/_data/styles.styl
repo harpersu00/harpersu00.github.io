@@ -1,0 +1,128 @@
+//窗口效果相关样式
+.sidebar {
+  //box-shadow-inner: 0 0 10px rgb(104, 131, 139), 0 0 5px rgb(104, 131, 139); /*阴影颜色*/
+  box-shadow: 50px 0 0 rgb(104, 131, 139), 0 0 30px rgb(104, 131, 139); /*阴影颜色*/
+  color: rgb(104, 131, 139);
+  background: url('/images/bk2.png');
+  font-size: 16px;
+}
+
+//防止sidebar和footer同时开启动效时堆叠异常
+#sidebar, header {
+  z-index: 1 !important;
+}
+
+//防止挡住页末文章的阅读全文按钮
+.main {
+  padding-bottom: 30px;
+}
+
+// 加宽菜单间距，放大菜单图标
+#menu .menu-item {
+  margin: 0px 14px;
+
+  .fa {
+    font-size: 16px;
+  }
+}
+
+.post {
+margin-top: 60px;
+margin-bottom: 60px;
+padding: 25px;
+-webkit-box-shadow: 0 0 5px rgba(202, 203, 203, .5);
+-moz-box-shadow: 0 0 5px rgba(202, 203, 204, .5);
+}
+
+.header {
+  background:url('/images/bk1.png');
+  box-shadow: 0 0 20px rgb(104, 131, 139), 0 0 20px rgb(104, 131, 139); /*阴影颜色*/
+}
+
+
+// 标题
+.site-title {
+    font-family: 'Comic Sans MS', sans-serif;
+    font-size: 28px;
+    font-weight: bold;
+    color: rgb(104, 131, 139);
+}
+
+
+// 标题背景
+.brand{
+    background: transparent;
+}
+
+// 菜单栏
+.menu {
+  margin-top: 2px;
+  padding-left: 20px;
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+  width: 530px;
+  border-radius: initial;
+
+}
+
+
+// 菜单字体大小
+.menu .menu-item a {
+    font-size: 14px;
+    color: rgb(104, 131, 139);
+}
+.menu .menu-item a:hover {
+    border-bottom-color: #ff106c;
+}
+
+
+// 站点描述
+.site-description {
+    font-size: 14px;
+}
+
+// 头部inner
+.header-inner {
+    padding: 45px 0 25px;
+    width: 700px;
+}
+
+// 作者名
+.site-author-name {
+    font-family: 'Comic Sans MS', sans-serif;
+    font-size: 20px;
+    color: rgb(104, 131, 139);
+}
+
+// 按钮样式
+.btn {
+    margin-top: 15px;
+    font-size: 16px;
+}
+
+
+// 文章内标题样式（左边的竖线）
+.post-body h2, h3, h4, h5, h6 {
+    border-left: 4px solid #657b83;
+    padding-left: 10px;
+}
+
+.post-body h1 {
+    border-left: 5px solid #657b83;
+    padding-left: 10px;
+}
+
+//近期文章样式
+.links-of-blogroll-title {
+  font-size: 15px;
+}
+.links-of-blogroll-list a {
+  border-bottom: none;
+  padding-left: 0;
+  &:hover{
+    color: #428bca;
+    font-weight: bold;
+    border-bottom: 1px solid #428bca;
+  }
+}

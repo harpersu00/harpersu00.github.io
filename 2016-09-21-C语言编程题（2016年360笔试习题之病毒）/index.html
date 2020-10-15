@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="题目（编程题：病毒）小B最近对破解和程序攻击产生了兴趣，她迷上了病毒，然后可怕的事情发生了。不知道什么原因，可能是小B的技术水平还不够高，小B编写的病毒程序在攻击一个服务器时出现了问题。尽管成功的入侵了服务器，但并没有按照期望的方式发挥作用。 小B的目的很简单：控制服务器内存区域，试图在内存中装入从1到n之间的n个自然数，以覆盖内存区域。可能是小B对编程理解上的问题，病毒似乎没有完全成功。可能是由">
+<meta property="og:type" content="article">
+<meta property="og:title" content="C语言编程题（2016年360笔试习题之病毒）">
+<meta property="og:url" content="https://harpersu00.github.io/2016-09-21-C%E8%AF%AD%E8%A8%80%E7%BC%96%E7%A8%8B%E9%A2%98%EF%BC%882016%E5%B9%B4360%E7%AC%94%E8%AF%95%E4%B9%A0%E9%A2%98%E4%B9%8B%E7%97%85%E6%AF%92%EF%BC%89/index.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="题目（编程题：病毒）小B最近对破解和程序攻击产生了兴趣，她迷上了病毒，然后可怕的事情发生了。不知道什么原因，可能是小B的技术水平还不够高，小B编写的病毒程序在攻击一个服务器时出现了问题。尽管成功的入侵了服务器，但并没有按照期望的方式发挥作用。 小B的目的很简单：控制服务器内存区域，试图在内存中装入从1到n之间的n个自然数，以覆盖内存区域。可能是小B对编程理解上的问题，病毒似乎没有完全成功。可能是由">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2016-09-20T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-13T07:56:06.418Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://harpersu00.github.io/2016-09-21-C%E8%AF%AD%E8%A8%80%E7%BC%96%E7%A8%8B%E9%A2%98%EF%BC%882016%E5%B9%B4360%E7%AC%94%E8%AF%95%E4%B9%A0%E9%A2%98%E4%B9%8B%E7%97%85%E6%AF%92%EF%BC%89/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>C语言编程题（2016年360笔试习题之病毒） | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2016-09-21-C%E8%AF%AD%E8%A8%80%E7%BC%96%E7%A8%8B%E9%A2%98%EF%BC%882016%E5%B9%B4360%E7%AC%94%E8%AF%95%E4%B9%A0%E9%A2%98%E4%B9%8B%E7%97%85%E6%AF%92%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          C语言编程题（2016年360笔试习题之病毒）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2016-09-21 00:00:00" itemprop="dateCreated datePublished" datetime="2016-09-21T00:00:00+08:00">2016-09-21</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%B9%A0%E9%A2%98/" itemprop="url" rel="index"><span itemprop="name">习题</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="题目（编程题：病毒）"><a href="#题目（编程题：病毒）" class="headerlink" title="题目（编程题：病毒）"></a>题目（编程题：病毒）</h2><p>小B最近对破解和程序攻击产生了兴趣，她迷上了病毒，然后可怕的事情发生了。不知道什么原因，可能是小B的技术水平还不够高，小B编写的病毒程序在攻击一个服务器时出现了问题。尽管成功的入侵了服务器，但并没有按照期望的方式发挥作用。</p>
+<p>小B的目的很简单：控制服务器内存区域，试图在内存中装入从1到n之间的n个自然数，以覆盖内存区域。可能是小B对编程理解上的问题，病毒似乎没有完全成功。可能是由于保护机制的原因，内存写入只接受二进制的形式，所以十进制表达中除了0和1之外的其他值都没有成功写入内存。小B希望知道，究竟有多少数成功的写入了服务器的内存！</p>
+<a id="more"></a>
+
+<p><strong>输入</strong></p>
+<blockquote>
+<p>输入中有多组测试数据，每组测试数据在单独的一行中，为整数n（1&lt;=n&lt;=10^9）。</p>
+</blockquote>
+<p><strong>输出</strong></p>
+<blockquote>
+<p>对每组测试数据，在单独的行中输出问题的答案。</p>
+</blockquote>
+<p><strong>举例</strong></p>
+<blockquote>
+<p>输入：10<br>输出： 2</p>
+<p>输入：20<br>输出：3</p>
+</blockquote>
+<h2 id="代码"><a href="#代码" class="headerlink" title="代码"></a>代码</h2><table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div></pre></td><td class="code"><pre><div class="line"> <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></div><div class="line"> <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></div><div class="line"> <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdlib.h&gt;</span></span></div><div class="line"></div><div class="line"><span class="comment">/**</span></div><div class="line">&nbsp;*&nbsp; 1. 输入的字符数组从最高位开始依次与1做比较</div><div class="line">&nbsp;*&nbsp; 2. 小于等于1 取原值，并比较下一位，如果没有下一位，则返回；</div><div class="line">&nbsp;*&nbsp; 3. 大于1，则其后的位数都取1，并返回；</div><div class="line">&nbsp;*&nbsp; 4. 将得到的字符数组看作二进制，并转化为十进制。</div><div class="line">&nbsp;*</div><div class="line">&nbsp;*/</div><div class="line"><span class="keyword">static</span> <span class="keyword">char</span> addarray[<span class="number">10</span>] = <span class="string">""</span>;</div><div class="line"><span class="keyword">static</span> <span class="keyword">char</span> array1[<span class="number">10</span>] = <span class="string">""</span>;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">char</span> * <span class="title">fun</span><span class="params">(<span class="keyword">char</span> *cstring, <span class="keyword">int</span> n)</span> </span>{</div><div class="line">    <span class="keyword">char</span> compareString = *(cstring + n);</div><div class="line">    <span class="keyword">char</span> *onestring = <span class="string">"1"</span>;</div><div class="line">    <span class="keyword">char</span> <span class="built_in">array</span>[<span class="number">10</span>] = <span class="string">""</span>;</div><div class="line">    <span class="keyword">char</span> *rec = <span class="string">""</span>;</div><div class="line"></div><div class="line">    <span class="keyword">if</span> (<span class="built_in">strcmp</span>(onestring,&amp;compareString) &gt;= <span class="number">0</span>) {  <span class="comment">//compareString &lt;= 1</span></div><div class="line">        <span class="built_in">array</span>[<span class="number">0</span>] = compareString;</div><div class="line">        <span class="keyword">if</span> (*(cstring+n+<span class="number">1</span>)) {</div><div class="line">            <span class="built_in">strcat</span>(<span class="built_in">array</span>, fun(cstring, n+<span class="number">1</span>));</div><div class="line">            <span class="built_in">strcpy</span>(addarray, <span class="built_in">array</span>);</div><div class="line">            rec = addarray;</div><div class="line">        }</div><div class="line">        <span class="keyword">else</span></div><div class="line">            rec = cstring + n;</div><div class="line"></div><div class="line">    }</div><div class="line">    <span class="keyword">else</span> {         <span class="comment">//compareString &gt; 1</span></div><div class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; (<span class="built_in">strlen</span>(cstring) - n); i++) {</div><div class="line">            <span class="built_in">strcat</span>(array1, onestring);</div><div class="line">        }</div><div class="line">        rec = array1;</div><div class="line">    }</div><div class="line"></div><div class="line">    <span class="keyword">return</span> rec;</div><div class="line">}</div><div class="line"></div><div class="line"></div><div class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>{</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">char</span> nstring[<span class="number">10</span>];</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"Input String:"</span>);</div><div class="line">    <span class="built_in">scanf</span>(<span class="string">"%s"</span>, nstring);</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">char</span> *resultString = fun(nstring, <span class="number">0</span>);</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%s\n"</span>, resultString);</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">long</span> result = strtol(resultString, <span class="literal">NULL</span>, <span class="number">2</span>);</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%ld\n"</span>, result);</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">return</span> <span class="number">0</span>;</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>输出：</p>
+<blockquote>
+<p>Input String:20<br>11<br>3</p>
+<p>Input String:1040<br>1011<br>11</p>
+<p>Input Stirng:2300304<br>1111111<br>127</p>
+</blockquote>
+<h2 id="知识点总结"><a href="#知识点总结" class="headerlink" title="知识点总结"></a>知识点总结</h2><p><strong>关于字符数组和字符串在函数间的传递</strong></p>
+<p>从代码中可以看到我用了两个静态数组变量，之所以不直接定义在函数体内作为局部变量是因为：</p>
+<blockquote>
+<p>当用字符指针<code>char*</code>返回字符数组首地址时，函数体内的局部变量数组里的值已经被释放，返回的首地址虽然没有变，但里面的值已经无意义了。</p>
+</blockquote>
+<p>例如：</p>
+<table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"stdio.h"</span></span></div><div class="line">  </div><div class="line">  <span class="function"><span class="keyword">char</span> *<span class="title">test</span><span class="params">()</span></span></div><div class="line">  {</div><div class="line">      <span class="comment">//char tmp[30]="测试";</span></div><div class="line">      <span class="keyword">char</span> *tmp=<span class="string">"测试"</span>;<span class="comment">//写成这样可以用指针返回数组首地址</span></div><div class="line">     <span class="keyword">return</span> tmp;</div><div class="line"> }</div><div class="line"> </div><div class="line"> <span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></div><div class="line"> {</div><div class="line">     <span class="built_in">printf</span>(<span class="string">"%s"</span>,test());</div><div class="line"> }</div></pre></td></tr></tbody></table>
+
+<p>打印出来的值可能是乱码也能为nil。<br>解决方式：<br><strong>1. static全局变量</strong></p>
+<table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"stdio.h"</span></span></div><div class="line"> </div><div class="line"><span class="function"><span class="keyword">char</span> *<span class="title">test</span><span class="params">()</span></span></div><div class="line">{</div><div class="line">     <span class="keyword">static</span> <span class="keyword">char</span> tmp[<span class="number">30</span>]=<span class="string">"static测试"</span>;</div><div class="line">     <span class="keyword">return</span> tmp;</div><div class="line">}</div><div class="line"> </div><div class="line"> <span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></div><div class="line">{</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%s"</span>,test());</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>在数组tmp[30]前面加入了<code>static</code>关键字，它就使得<code>tmp[30]</code>存放在内存中的静态存储区中，所占用的存储单元一直不释放，直到整个程序运行结束。所以当主函数调用完<code>print()</code>函数后，该空间依然存在。所以<code>main()</code>函数中接到首地值后可以访问数组中的元素。</p>
+<p><strong>2. 结构体作为返回值</strong></p>
+<table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"stdio.h"</span></span></div><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"string.h"</span></span></div><div class="line"></div><div class="line"><span class="keyword">struct</span> ret</div><div class="line">{</div><div class="line">    <span class="keyword">char</span> buf[<span class="number">30</span>];</div><div class="line">};</div><div class="line"> </div><div class="line"> <span class="function"><span class="keyword">struct</span> ret <span class="title">test</span><span class="params">(<span class="keyword">char</span> *tmp)</span></span></div><div class="line">{</div><div class="line">    <span class="keyword">struct</span> ret a;</div><div class="line">    <span class="built_in">strcpy</span>(a.buf,tmp);</div><div class="line">    <span class="keyword">return</span> a;</div><div class="line">}</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></div><div class="line">{</div><div class="line">    <span class="keyword">struct</span> ret b;</div><div class="line">    b=test(<span class="string">"用结构体作为返回值传递数组"</span>);</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%s"</span>,b.buf);</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>两点注意：</p>
+<p>1、数组之间的赋值不要直接，即不要直接将数组 A 赋给数组 B，而是要用<code>strcpy</code>（字符型数组）或者<code>memcpy</code>（非字符型数组）。</p>
+<p>2、用结构体定义变量和函数时不要忘了结构体名（上面程序的<code>ret</code>）。</p>
+<hr>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] 【原】C语言函数返回数组的问题　<a target="_blank" rel="noopener" href="http://www.cnblogs.com/wuqi1003/archive/2013/01/09/2853657.html">http://www.cnblogs.com/wuqi1003/archive/2013/01/09/2853657.html</a><br>[2] C语言中字符串如何转换为二进制、八进制、十进制、十六进制　 　<a target="_blank" rel="noopener" href="http://blog.csdn.net/edonlii/article/details/9162769">http://blog.csdn.net/edonlii/article/details/9162769</a><br>[3] C语言之strcat函数　<a target="_blank" rel="noopener" href="http://blog.csdn.net/hgj125073/article/details/8439448">http://blog.csdn.net/hgj125073/article/details/8439448</a><br>[4] C语言strcmp()函数：比较字符串（区分大小写）　<a target="_blank" rel="noopener" href="http://c.biancheng.net/cpp/html/162.html">http://c.biancheng.net/cpp/html/162.html</a></p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/2016-09-21-C%E8%AF%AD%E8%A8%80%E7%BC%96%E7%A8%8B%E9%A2%98%EF%BC%882016%E5%B9%B4360%E7%AC%94%E8%AF%95%E4%B9%A0%E9%A2%98%E4%B9%8B%E7%97%85%E6%AF%92%EF%BC%89/" title="C语言编程题（2016年360笔试习题之病毒）">https://harpersu00.github.io/2016-09-21-C语言编程题（2016年360笔试习题之病毒）/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2016-09-08-@property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/" rel="prev" title="property 中的常用关键字分析">
+      <i class="fa fa-chevron-left"></i> property 中的常用关键字分析
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83/" rel="next" title="栈·参数存储排布">
+      栈·参数存储排布 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%A2%98%E7%9B%AE%EF%BC%88%E7%BC%96%E7%A8%8B%E9%A2%98%EF%BC%9A%E7%97%85%E6%AF%92%EF%BC%89"><span class="nav-number">1.</span> <span class="nav-text">题目（编程题：病毒）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%A3%E7%A0%81"><span class="nav-number">2.</span> <span class="nav-text">代码</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%9F%A5%E8%AF%86%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-number">3.</span> <span class="nav-text">知识点总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Reference"><span class="nav-number">4.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
+                  &emsp;03-07
+                </time>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

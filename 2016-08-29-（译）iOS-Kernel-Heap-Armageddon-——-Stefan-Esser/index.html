@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="摘要你所了解到的关于 iOS 内核堆利用的公开研究，最终都可以归结于对内核堆空间的分配，这个观点由 nemo 首先提出来。总而言之，这种分配将空间内的内核内存分成相同大小的内存块。通过利用重写堆元数据，可以向空间的空闲列表 (freelist) 中注入任意内存区。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="（译）iOS Kernel Heap Armageddon —— Stefan Esser">
+<meta property="og:url" content="https://harpersu00.github.io/2016-08-29-%EF%BC%88%E8%AF%91%EF%BC%89iOS-Kernel-Heap-Armageddon-%E2%80%94%E2%80%94-Stefan-Esser/index.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="摘要你所了解到的关于 iOS 内核堆利用的公开研究，最终都可以归结于对内核堆空间的分配，这个观点由 nemo 首先提出来。总而言之，这种分配将空间内的内核内存分成相同大小的内存块。通过利用重写堆元数据，可以向空间的空闲列表 (freelist) 中注入任意内存区。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE1.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE2.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE3.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE4.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE5.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE6.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE7.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE8.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE9.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE10.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE11.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE12.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE13.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE14.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE15.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE16.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE17.png">
+<meta property="article:published_time" content="2016-08-28T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-13T07:22:05.990Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://harpersu00.github.io/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE1.png">
+
+<link rel="canonical" href="https://harpersu00.github.io/2016-08-29-%EF%BC%88%E8%AF%91%EF%BC%89iOS-Kernel-Heap-Armageddon-%E2%80%94%E2%80%94-Stefan-Esser/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>（译）iOS Kernel Heap Armageddon —— Stefan Esser | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2016-08-29-%EF%BC%88%E8%AF%91%EF%BC%89iOS-Kernel-Heap-Armageddon-%E2%80%94%E2%80%94-Stefan-Esser/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          （译）iOS Kernel Heap Armageddon —— Stefan Esser
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2016-08-29 00:00:00" itemprop="dateCreated datePublished" datetime="2016-08-29T00:00:00+08:00">2016-08-29</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%BF%BB%E8%AF%91/" itemprop="url" rel="index"><span itemprop="name">翻译</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a><strong>摘要</strong></h2><p>你所了解到的关于 iOS 内核堆利用的公开研究，最终都可以归结于对内核堆空间的分配，这个观点由 nemo 首先提出来。总而言之，这种分配将空间内的内核内存分成相同大小的内存块。通过利用重写堆元数据，可以向空间的空闲列表 (freelist) 中注入任意内存区。</p>
+<a id="more"></a>
+
+<p>在本文中，我们将首先概括关于内核堆空间分配的知识，像 nemo 和 Esser 之前所提到的那样。接着，我们将看一看其他的内核堆管理以及 Mac OSX 和 iOS 内核中的内存分配封装函数。在简单介绍这些封装函数之后，我们将进一步介绍这些分配器在最新版本 iOS 5 之后的改变。本文将继续介绍内核层的应用数据重写与直接攻击分配器的空闲列表区之间的差异。最后将展示一种普遍的技术：为了实现内核堆利用，通过执行内核堆喷射 (heap spraying) ，来控制内核堆布局的布局。</p>
+<h2 id="内核堆空间分配"><a href="#内核堆空间分配" class="headerlink" title="内核堆空间分配"></a><strong>内核堆空间分配</strong></h2><p>对于 Mac OSX 以及越狱的苹果手机，有一种可用的工具叫做 zprint ，它可以查看由内核堆分配器注册的内核内存空间。<br>例如：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE1.png"></p>
+<p>这些信息都是由内核 API 函数 host_zone_info 以及 mach_zone_info 提供的。当涉及到构造内核堆利用方法时，这些 API 函数都非常有用，因为它们可以检索每个内核空间的详细信息，比如分配的块的数量，空闲内存块的数量等。Sotirov提到：后者对于控制内核堆（又称为堆风水）技术非常有用。但是根据苹果 iOS 6 的介绍，为了防止内核 API 函数被用于工厂 设备iPhone ，这条路已经被关闭了。现在调用 PE_i_can_haz_debugger 函数，在越狱机以及特殊的苹果内部调试设备、通过苹果可能有的特殊调试虚拟磁盘启动的设备上，只会返回 true。不管怎样，以后的内核堆利用已经不能再依赖这些函数了。</p>
+<p>为了弄清楚内核堆分配器是如何工作的，我们可以通过下面的图表了解，这些图表将会一步步记录其内部的运行。分配器将内核内存分成了许多空间，每个空间包含了同样大小的内存块。它首先在空间内分配一大块内存（通常是一个单独的内存页）。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE2.png"></p>
+<p>所有的内存都在这个空间里，然后它被分为大小相同的块。在这个例子中，每块内存正好为 512bytes 。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE3.png"></p>
+<p>内存管理器用每个空闲内存块的 4 个首字节作为指向另一个内存块的指针。如下图所示：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE4.png"></p>
+<p>空间分配器创建了一个空闲内存块链表，即空闲列表。它是一个后进先出的列表，在链表内，每个元素都指向下一个元素。因为在新的内存页里的第一个空闲内存块首先被添加，正如下图所示，空闲内存将会被反序利用。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE5.png"></p>
+<p>某特定空间的最后一个元素被添加到空闲列表后，当内存被分配给这个特定空间时，该元素也被称为空闲列表头部，同时作为分配内存块标识返回。返回新分配的内存之后，空闲列表中下一个元素的指针从内存块的首4字节读取。指针读取成为新的自由列表头部。它指向的内存块将会因此成为下一个返回值。这个原则由下图证实。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE6.png"></p>
+<p>现在我们知道了堆空间分配的基本机制，接下来我们介绍一下如何利用这种内存分配。我们发现，两个相邻的内存块，第一个为分配缓存区，第二个为空闲内存块，缓存区溢出将会导致堆元数据被覆盖。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE7.png"></p>
+<p>如果攻击者控制了缓存区溢出的数据，那么他完全可以控制空闲列表中指向下一个元素的指针。如上所述的分配将会返回被重写的内存块，使得攻击者控制空闲列表的头部指针。之后分配器将会返回一个被攻击者控制的内存块。在公开的 iOS 内核堆利用中，这种技术被用来返回位于系统调用表中间的一块内存。通过强制内核分配一块内存，并用被攻击者控制的数据覆盖，这种方式可以替换任意系统调用处理程序，并实现任意内核代码执行。</p>
+<p>据了解， iOS 6 的测试版在内核堆分配器中添加了一些内存标签，虽然一般来说，它不阻止攻击空闲列表，但是阻止公开地使用攻击，因为它只允许向内核的空闲列表中注入内存块，但是这样也已经完全在攻击者的控制之下了。</p>
+<h2 id="其他内核堆内存管理和封装器"><a href="#其他内核堆内存管理和封装器" class="headerlink" title="其他内核堆内存管理和封装器"></a><strong>其他内核堆内存管理和封装器</strong></h2><p>Mac OSX 和 iOS 内核包含了许多其他的内核堆内存管理以及封装。下图展示了其中一部分的封装和内存管理。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE8.png"></p>
+<p>在本节中，我们将介绍几个提到的分配器和封装，并讨论它们的属性以及利用。</p>
+<hr>
+<ul>
+<li>kalloc()</li>
+</ul>
+<p>kalloc() 是用来封装 zalloc() 以及 kmem_alloc() 的。它在小分配时使用 zalloc() ，较大的内存请求时使用 kmem_alloc() 。它没有任何额外的堆元数据。因此，需要调用者记住分配的内存大小，当稍后内存使用 kfree() 释放时要求使用相同大小的值。</p>
+<p>存储在内核空间的数据由内存管理器注册一个空间号码，这个号码为 kalloc.xxx ，xxx 即为 kalloc 空间大小。在 iOS 5 中可使用 zprint 工具得到以下空间。(译者注：在OS X 10.11 及以上系统可在 root 权限下使用 zprint | grep kalloc 命令)</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE9.png"></p>
+<p>可以从中发现，这个内核空间是在 8 到 8192 之间的每2倍大小再加上一些额外的空间值，这些额外值的大小是2倍之间可被8整除的数。比如 kalloc.24, kalloc.40, kalloc.48, kalloc.88, kalloc.112, kalloc.192, kalloc.384, kalloc.768, kalloc.1536, kalloc.3072 以及 kalloc.6144 。在 iOS 5 之前，这些 kalloc 空间并不存在，且最小的空间为 16 。这种增加空间的变化可能是为了减少内存浪费，以便使得最常用的分配越来越合适。</p>
+<hr>
+<ul>
+<li>kfree()</li>
+</ul>
+<p>在跳转到下一个封装之前，还有一些值得注意的地方，kfree() 函数。正如之前所提到的那样，调用者需要记住需要释放的块的大小，否则 kfree() 不知道 zfree() 或 kmem_free() 是否被调用，以及需要向内存返回多大的空间。内存管理器除了保持对较大的分配内存块的跟踪之外，对于释放一个比之前所记忆值大的块的尝试将会被忽略。这是一个简单的保护机制防止二次释放。</p>
+<hr>
+<ul>
+<li>_MALLOC()</li>
+</ul>
+<p>_MALLOC() 是一个对 kalloc() 函数的封装。对于分配的内存块它预先留下一个简短的头部，存储分配的大小。这种通过 _MALLOC() 进行内存分配的方式，在内核代码中可以在不需要保持对块大小的跟踪的情况下释放。下图是一个通过系统调用的内存分配例子。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE10.png"></p>
+<p>0字节的分配是特例。_MALLOC() 会简单拒绝这样的分配并返回一个空指针。目前尚不知道为什么苹果不返回一个最小大小的分配值，因为分配 0 字节是可以在合理条件下发生的。用大小作为头部有两个缺点，第一为了确定分配的大小，它要求有整数加法，第二当重写导致可执行的情况，它相当于额外的堆元数据。</p>
+<p>当看到 iOS 4 中的 XNU源代码树中的源代码，可以发现 _MALLOC() 中整数加法的危险是显而易见的。正如下面代码所示，苹果并没有设定在 iOS 4 以及 Mac OSX 中的整数溢出，这将会导致许多可能的内核堆错误。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE11.png"></p>
+<p>但是在 iOS 5 的 release 版本之前，苹果研究了可能的整数溢出并关闭了它。代码改为捕捉整数溢出，防止在非阻塞情况下，溢出流返回空指针。但是在阻塞情况下，可以看到触发了内核 panic。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE12.png"></p>
+<p>包含了额外大小字段的内存块头部，对于重写来说，是一个非常有趣的目标，因为通过重写它，内存管理器可以被欺骗去释放错误区域的空闲列表中的内存块。如果大小被重写为一个更小的值，这个块也将会被添加到更小尺寸的块的空闲列表中。这不会导致内存错误，但将会导致内存泄漏，因为稍长的那部分永远不会被覆盖。同样，如果一个较大的尺寸被写入头部，这个块也会被添加到较大尺寸块的自由列表中。这样将会导致内存错误，因为内核分配相信块比实际尺寸大，而这将会导致它在填满时覆盖到相邻的内存。</p>
+<h2 id="内核堆应用数据重写"><a href="#内核堆应用数据重写" class="headerlink" title="内核堆应用数据重写"></a><strong>内核堆应用数据重写</strong></h2><p>考虑到苹果正在硬化空间分配器，一些内存分配器也将不再会有流入的堆元数据可以被覆盖，因此我们将要介绍一种有攻击性且有趣的存储在堆上的内核应用数据。本节的剩余部分，我们将使用内核层的 C++ 对象作为这种有趣的可以被广泛使用的应用数据的示例。</p>
+<p>在 iOS 内核中的 libkern 实现了一个 C++ 运行时子集。它允许内核驱动程序用 C++ 写，其中 IOKit 驱动使用最为频繁。这太有意思了，因为它为 iOS 内核带来了 C++ 类的漏洞。但是对于我们来说，只有在内存布局中的类是有意义的</p>
+<p>下图展示了一个支持 iOS 内核的 C++ 运行时以及继承的基本对象的概述：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE13.png"></p>
+<p>正如你所看见的，所有的这些类都是由基类 OSObject 分发而来的。接下来我们将要更进一步查看这些类的内存排布。可以看到 OSObject 由一个 vtable ptr 和一个引用计数器组成：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE14.png"></p>
+<p>vtable ptr 指向内核的数据段，即对象的方法表的存储位置。另一方面，引用计数器要稍微复杂一点。它是一个将 16bit 引用计数存储在低 16 位的 32bit 值。用高 16 位计数对象在集合中的频率，作为第二参考计数。貌似设计的最初目的是用来调试，因为集合计数看起来只能用来验证正常引用计数不低于集合计数。如果是这样，则任何情况都能导致内核 panic 被触发。引用计数器特别的一点是它有一个内置的整数溢出保护。如果引用计数器的值达到65534，则计数器将会被冻结，意味着它将既不会增加，也不会再减少。因此该对象不再可以被破坏，它的内存也不会被释放。</p>
+<p>为了明白 iOS 内核对象重写是如何被利用的，首先需要弄清楚在内存中一个 OSObject 的每个部分被重写的影响。如果可以重写 vtable ptr，则可以改变用于查找对象方法的表中的地址。一旦这个指针被重写了对象上的每一个执行操作，将会导致任意内核代码执行。如果引用计数器被重写，将会允许将引用计数器设置为一个小于现有的实际引用计数的值。同时允许释放之前的对象，这将会导致一种典型用法，即通过悬挂引用引起的任意利用。一旦释放了下一个相同大小的分配内存，则对象的内容将会被完全替换。</p>
+<p>在 iOS 内核中， OSObject 是一个最简单的 C++ 对象。其他对象比如 OSString 则更复杂一些，包含有更多数量或者更多不同类型的属性。进一步分析它们的内存布局也将会因此变得有趣。首先，让我们看看 OSString 对象，它的内存布局如下图所示。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE15.png"></p>
+<p>除了 OSObject 中已知的属性外，flags，length 和 string ptr 三个是新增的。flags 只是控制对象内部的字符串指针是否在其被销毁时释放。这通常只在其他的字段同时被重写时有用。更有用一点的是 length 字段。如果字符串的长度被改变为一个大于原始值的数值，则会导致内核堆信息泄漏或者破坏的内存错误。内存错误是由于长度太大，进而导致长度较小的内存块被添加到错误的内核堆空间的空闲列表里。如果被释放的内存在之后重新分配，则返回的指针将会指向一个实际小于预期的内存块。当内核中的这个小内存块被数据填满时，多余的数据则会重写到相邻的内存中。最后一个字段可以被字符串指针自身重写。同样，该指针被重写，也会导致内核堆信息泄漏或者破坏的内存错误。这种情况下，攻击者可以向特殊空间的空闲列表注入一段任意内存地址，一旦那段内存被内核重新分配然后填满，将导致内存破坏。</p>
+<p>另外一个有意思的重写对象是 OSArray 。它包括了更多的属性，因此也提供了一些新的有趣的重写可能性。让我们看一下 OSArray 对象的内存布局：</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE16.png"></p>
+<p>updateStamp, reserved 以及 fOptions 字段对于重写来说没有什么用处，因为它们不能导致有用的可利用的场景。但是其他的字段都可以。count, capacity 和 capacityIncrement 字段都是由 kalloc() 分配的内存的值。重写这些值将会混淆内存，使得它分配或者再分配错误数量的内存。这种做法将会导致内核堆信息泄漏或者破坏的内存错误。最后一个字段 array ptr 是来自于 OSObject 的对象指针。重写它使得内核可以访问任意构造的对象，从而导致内核里的任意代码执行。另一种攻击是直接重写存储数据的内存块。</p>
+<p>我们对于 重写 iOS 内核的 C++ 对象的内存布局，以及由此产生的可行性做了一个简单概述。记住这些信息，在下一节中，我们将利用这些对象来填充 iOS 内核堆并控制它的布局。</p>
+<h2 id="控制-iOS-内核堆"><a href="#控制-iOS-内核堆" class="headerlink" title="控制 iOS 内核堆"></a><strong>控制 iOS 内核堆</strong></h2><p>要成功利用内核堆错误，则要求将内核堆从一个未知起点通过可控制的方式指向一个可预测的状态。对于这个需求，有很多不同的技术方法。其中最简单的方法叫做堆喷射 ( heap spraying ) ，即使用特殊的数据通过重复触发相同的分配来填充内存，直到内存中很大比例都被这种模式充满（或者触发另一个终止条件）。为了实现堆喷射，要求有一个分配基元来重复执行。由于这种技术早在 2001 年之前就已经开始使用，所以谁是堆喷射的最初发明者尚未可知。</p>
+<p>A.Sotirov 在2007年提出了一个更复杂更好的用来控制堆状态的技术，叫做堆风水。在他的黑帽子谈话中，他描述了如何从未知状态的堆得到被控制的内存布局。首先需要重复分配内存来填充堆中的空洞。一旦所有的空洞都被封闭了，则进一步的分配将会使得彼此相邻。在这些相邻的区域释放内存块，将会在可控位置戳一些洞，使得接下来的分配都在这些洞的位置上。这种方式可以控制堆布局，即溢出缓存区将会正好溢出我们想要溢出的数据。当然，实现一个堆风水技术也要比堆喷射更复杂，它不仅需要一个分配基元，还需要一个回收基元。</p>
+<p>在以前的公开 iOS 内核利用中，分配以及回收基元通常是特殊的，且依赖于实际的开发功能。在此，我们将介绍一个更为通用的方法，可以在没有易被攻击的特殊分配和回收基元的条件下，控制内核堆。</p>
+<p>iOS 内核有一个非常有趣的函数叫做 OSUnserializeXML()。它由许多 IOKit API 中的函数来调用，被用于将对象从用户空间传送到内核空间。这个函数以 XML.plist 的格式 提供一个输入，可以是数字，布尔量，字符串，数据，字典，数组，集合和引用。下面是一个 XML plist 的例子。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>IsThere<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">string</span>&gt;</span>one technique to rule them all?<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>Answer<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>Audience<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">string</span>&gt;</span>meet OSUnserializeXML()<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>通过构建这样一个 XML.plist 数据包，可以在内存中创建任意对象集合，以及在所有大小和形状中，分配任意数量的不同类型的对象。我们可以用它来控制内核堆，以任何我们喜欢的方式。下表是一个基本对象的内存大小的备忘清单。</p>
+<p><img src="/images/2016-08-29-%E8%AF%91-iOS-Kernel-Heap-Armageddon/%E5%9B%BE17.png"></p>
+<p>现在我们来看一下如何构造 XML 数据，使其实现堆喷射和堆风水。</p>
+<hr>
+<ul>
+<li>重复分配</li>
+</ul>
+<p>我们首先需要做的是分配任意大小任意数量的内存块。不幸的是，在 XML.plist 数据块内部进行循环是不可能的。但是也没有限制，因此我们可以按照我们的想法分配尽可能多的数据。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisIsOurArray<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">     <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>again and<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">string</span>&gt;</span>...<span class="tag">&lt;/<span class="name">string</span>&gt;</span></span><br><span class="line">     <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span> </span><br></pre></td></tr></table></figure>
+
+<p>这个示例使用一个数组对象，并填充任意数量的字符串。为了做一个内核堆喷射，我们只需要构建一个非常庞大的 XML 数据对象，并传给一个合适的 IOKit API 函数。</p>
+<hr>
+<ul>
+<li>分配受攻击者控制的数据</li>
+</ul>
+<p>在 iOS 内核堆喷射中，使用字符串数据对象的缺点是，不能包含空字节。因此，用完全任意数据结构的字符串对象来实现堆喷射是不可行的。不过我们还有数据对象可以施以援手。由于数据是 base64 编码的，所以它允许创建任意数据结构，没有字符值的限制。另外，内核也支持简单的 16 进制。比如下面的例子。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">       <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisIsOurData<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">data</span>&gt;</span>VGhpcyBJcyBPdXIgRGF0YSB3aXRoIGEgTlVMPgA8+ADw=<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">data</span> <span class="attr">format</span>=<span class="string">&quot;hex&quot;</span>&gt;</span>00112233445566778899aabbccddeeff<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">data</span>&gt;</span>...<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">       <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span> </span><br></pre></td></tr></table></figure>
+
+<p>数据对象类型也更方便，因为它读取到4049块中，因此在解码 XML 时，它在我们感兴趣的内存空间中不分配块。通过结合数组和数据，我们可以执行内核水平的堆喷射。堆风水需要更多的控制条件，接下来我们会提到。</p>
+<hr>
+<ul>
+<li>用应用数据填充任意大小的内存块</li>
+</ul>
+<p>对于堆风水，我们不仅需要分配任意大小的内存块，还需要在重写导致的任意代码执行时，分配被数据填充的任意大小内存块。对于此，我们再次使用数据对象类型（当然也可以使用字典对象类型）。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisArrayAllocates_4_Bytes<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisArrayAllocates_12_Bytes<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">key</span>&gt;</span>ThisArrayAllocates_28_Bytes<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">array</span>&gt;</span></span><br><span class="line">              <span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> &gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span><span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line">       <span class="tag">&lt;/<span class="name">array</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>在这个示例中，我们使用分配的数组来填充内存，并指向布尔对象。布尔量不会是单独的分配内存的对象。相反，它们会增加一个 global true 对象的引用计数。如果通过重写它向内核提供我们精心设计的对象，则会导致任意代码执行。字典对象类型可用于这种攻击。不同的是，在这个例子中，单个对象指针的乘数为 4，在字典中是 8，因为存储了 键值 (key) 和数值 (value) 对象的指针。</p>
+<hr>
+<ul>
+<li>在分配区域戳洞</li>
+</ul>
+<p>实现对内核堆完全控制的最后一件事是不仅需要分配任意大小的内存块，还需要能够在这些分配中戳任意大小的洞。在字典对象的帮助下，我们可以了解如何在已分配的内存中戳洞，请看下面的示例。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plist</span> <span class="attr">version</span>=<span class="string">&quot;1.0&quot;</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dict</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">key</span>&gt;</span>AAAA<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>BBBB<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>CCCC<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>DDDD<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>EEEE<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">data</span>&gt;</span>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA<span class="tag">&lt;/<span class="name">data</span>&gt;</span></span><br><span class="line">   <span class="tag">&lt;<span class="name">key</span>&gt;</span>CCCC<span class="tag">&lt;/<span class="name">key</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">true</span> /&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dict</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plist</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>在这个例子中，可以看到键值 CCCC 被设定了两次。第一次是插入到字典中，第二次更新键值的数值，且前一个值已被破坏。这个数据对象的破坏将会释放该数值对象本身，以及释放由 base64 编码重复的 Z 字符所组成的数值。我们也因此在内存中有效地戳了一个洞。拼图的最后一块是你构建的用于控制堆的 XML.plist 文件是没有问题的。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文中我们首先重演了 iOS 内核堆空间分配，以及不同作者在之前所提到的它的利用。接着，我们介绍了其他的内核堆分配器以及它们所带来的额外的堆元数据。我们讨论了如何重写这些可以被利用的数据，以及提到了这些分配器目前的变化。接下来我们离内核堆元数据结构的利用只有一步之遥，我们讨论了 iOS C++ 内核对象，以及他们在内存结构的布局和在内存中重写他们可以得到什么。最后，我们介绍一种通用的技术，利用 OSUnserializeXML() 可以实现堆喷射和堆风水。这种新技术不仅可以使用任意数据喷射堆来完全控制它的布局，也可以使用有意思的内核应用数据来填充内核堆，该应用数据采用内核级别的 C++ 对象形式，一旦重写，将会允许任意代码执行。</p>
+<hr>
+<h4 id="References"><a href="#References" class="headerlink" title="References"></a>References</h4><p>[1] E. PERLA, M. OLDANI, ”A GUIDE TO KERNEL EXPLOITATION - ATTACKING THE CORE”, 2010, HTTP://WWW.ATTACKINGTHECORE.COM/<br>[2] S. ESSER, ”IOS KERNEL EXPLOITATION, BLACKHAT USA”, 2011 HTTPS://MEDIA.BLACKHAT.COM/BH-US- 11/ESSER/BH_US_11_ESSER_EXPLOITING_THE_IOS_KERNEL_WP.PDF<br>[3] C. MILLER, D. BLAZAKIS, D. DAIZOVI, S. ESSER, V. IOZZO, R.-P. WEINMANN, ”IOS HACKER’S HANDBOOK”, 2012, HTTP://EU.WILEY.COM/WILEYCDA/WILEYTITLE/PRODUCTCD-1118204123,DESCCD- DESCRIPTION.HTML<br>[4] A. SOTIROV, ”HEAP FENG SHUI IN JAVASCRIPT, BLACKHAT EUROPE”, 2007 HTTPS://WWW.BLACKHAT.COM/PRESENTATIONS/BH-USA-07/SOTIROV/WHITEPAPER/BH- USA-07-SOTIROV-WP.PDF</p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/2016-08-29-%EF%BC%88%E8%AF%91%EF%BC%89iOS-Kernel-Heap-Armageddon-%E2%80%94%E2%80%94-Stefan-Esser/" title="（译）iOS Kernel Heap Armageddon —— Stefan Esser">https://harpersu00.github.io/2016-08-29-（译）iOS-Kernel-Heap-Armageddon-——-Stefan-Esser/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2016-09-06-AFNetworking-3.1.0-%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86/" rel="next" title="AFNetworking 3.1.0 第一部分">
+      AFNetworking 3.1.0 第一部分 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%91%98%E8%A6%81"><span class="nav-number">1.</span> <span class="nav-text">摘要</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%85%E6%A0%B8%E5%A0%86%E7%A9%BA%E9%97%B4%E5%88%86%E9%85%8D"><span class="nav-number">2.</span> <span class="nav-text">内核堆空间分配</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B6%E4%BB%96%E5%86%85%E6%A0%B8%E5%A0%86%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E5%92%8C%E5%B0%81%E8%A3%85%E5%99%A8"><span class="nav-number">3.</span> <span class="nav-text">其他内核堆内存管理和封装器</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%85%E6%A0%B8%E5%A0%86%E5%BA%94%E7%94%A8%E6%95%B0%E6%8D%AE%E9%87%8D%E5%86%99"><span class="nav-number">4.</span> <span class="nav-text">内核堆应用数据重写</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%A7%E5%88%B6-iOS-%E5%86%85%E6%A0%B8%E5%A0%86"><span class="nav-number">5.</span> <span class="nav-text">控制 iOS 内核堆</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">6.</span> <span class="nav-text">总结</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#References"><span class="nav-number">6.0.1.</span> <span class="nav-text">References</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
+                  &emsp;03-07
+                </time>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

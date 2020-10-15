@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="基础提要：栈结构ARM内存中的栈区域是满递减的，由高地址向低地址增长，SP指针始终指向最后一个压入栈的地址，即栈顶地址。如图所示：">
+<meta property="og:type" content="article">
+<meta property="og:title" content="栈·参数存储排布">
+<meta property="og:url" content="https://harpersu00.github.io/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83/index.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="基础提要：栈结构ARM内存中的栈区域是满递减的，由高地址向低地址增长，SP指针始终指向最后一个压入栈的地址，即栈顶地址。如图所示：">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE1.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE2.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE3.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE4.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE5.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE6.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE7.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE8.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE9.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE10.png">
+<meta property="article:published_time" content="2016-10-11T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-13T08:00:13.866Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://harpersu00.github.io/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE1.png">
+
+<link rel="canonical" href="https://harpersu00.github.io/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>栈·参数存储排布 | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          栈·参数存储排布
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2016-10-12 00:00:00" itemprop="dateCreated datePublished" datetime="2016-10-12T00:00:00+08:00">2016-10-12</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" itemprop="url" rel="index"><span itemprop="name">基础知识</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="基础提要：栈结构"><a href="#基础提要：栈结构" class="headerlink" title="基础提要：栈结构"></a>基础提要：栈结构</h2><p>ARM内存中的栈区域是满递减的，由高地址向低地址增长，SP指针始终指向最后一个压入栈的地址，即栈顶地址。如图所示：</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE1.png"></p>
+<a id="more"></a>
+
+<h3 id="为什么栈向下增长？"><a href="#为什么栈向下增长？" class="headerlink" title="为什么栈向下增长？"></a>为什么栈向下增长？</h3><blockquote>
+<p>每一个可执行C程序，从低地址到高地址依次是：text，data，bss，堆，栈，环境参数变量；<strong>其中堆和栈之间有很大的地址空间空闲着，在需要分配空间的时候，堆向上涨，栈往下涨。</strong></p>
+<p>这样设计可以使得堆和栈能够充分利用空闲的地址空间。如果栈向上涨的话，我们就必须得指定栈和堆的一个严格分界线，但这个分界线怎么确定呢？平均分？但是有的程序使用的堆空间比较多，而有的程序使用的栈空间比较多。</p>
+<p>所以就可能出现这种情况：一个程序因为栈溢出而崩溃的时候，其实它还有大量闲置的堆空间呢，但是我们却无法使用这些闲置的堆空间。</p>
+<p>所以呢，最好的办法就是让堆和栈一个向上涨，一个向下涨，这样它们就可以最大程度地共用这块剩余的地址空间，达到利用率的最大化！！</p>
+<p>—— 引用自<a target="_blank" rel="noopener" href="http://www.cnblogs.com/youxin/p/3313288.html">判断栈和堆的生长方向</a></p>
+</blockquote>
+<h3 id="如何判断栈的增长方向？"><a href="#如何判断栈的增长方向？" class="headerlink" title="如何判断栈的增长方向？"></a>如何判断栈的增长方向？</h3><p>很简单，我们可以通过两个函数的调用来确定。我们知道，执行一个函数时，这个函数的相关信息都会出现栈之中，比如参数、返回地址和局部变量。</p>
+<p>那么，当它调用另一个函数时，在它栈信息保持不变的情况下，会把被调用函数的信息放到栈中。两个函数的相对信息位置是固定的，肯定是先调用的函数其信息先入栈，后调用的函数其信息后入栈。只需要判断这两个地址，就可以判断栈的增长方向了。</p>
+<p>比如设计两个函数<code>fun1()</code>和<code>fun2()</code>，将<code>fun1()</code>中某参数的地址传给<code>fun2()</code>，且在<code>fun1()</code>中调用<code>fun2()</code>，最后在<code>fun2()</code>中打印出两个函数参数的地址，则大功告成。</p>
+<table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">void</span> <span class="title">func2</span><span class="params">(<span class="keyword">int</span> *a)</span></span></div><div class="line">{</div><div class="line">    <span class="keyword">int</span> b=<span class="number">0</span>;</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%x\n%x\n"</span>,a,&amp;b);</div><div class="line">}</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">void</span> <span class="title">func1</span><span class="params">()</span></span></div><div class="line">{</div><div class="line">    <span class="keyword">int</span> a=<span class="number">0</span>;</div><div class="line">    func2(&amp;a);</div><div class="line">}</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">()</span></span></div><div class="line">{</div><div class="line">    func1();</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>我这边测试打印出来分别是<code>5fbff91c</code> <code>5fbff8f4</code> （我用的<code>Xcode</code> 的 <code>command line</code> 测试的）。即<code>a</code> 的地址 &gt; <code>b</code>的地址，先分配的是高地址，因此是高地址向低地址增长。</p>
+<h3 id="如何区分栈底和栈顶？"><a href="#如何区分栈底和栈顶？" class="headerlink" title="如何区分栈底和栈顶？"></a>如何区分栈底和栈顶？</h3><p>很容易将分不清高地址和低地址到底谁才是栈底。我们可以想象一个桶，这个桶内的空间就是栈区，桶底（栈底）是确定了的，不会改变。往桶内加水，即使入栈操作。水面即是栈顶，也就<code>SP</code>指针所在的位置。我们不断加水，只会使得水面（栈顶<code>SP</code>指针）增长，而水底（栈底指针）仍旧不变。而栈区又是高地址向低地址增长，因此栈区的最高地址是为栈低，<code>SP</code>指针是栈顶指针。</p>
+<p>只不过，在实际应用情况中，我们经常习惯将栈底指针（最高地址处）放在最上面，<code>SP</code>指针在最下面，也就是一个倒扣着的桶，在失重情况下，往倒扣的桶里加水，水底仍然是栈底指针，水面仍然是栈顶指针，水面随着水的加入而增长。</p>
+<h2 id="实例"><a href="#实例" class="headerlink" title="实例"></a>实例</h2><p>在逆向过程中，我一直对栈的数据排列非常迷惑，现在让我们一起来解决它吧！<br>以下是我逆向遇到的一个小实例：</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE2.png"></p>
+<p>在图中我们可以看到目前运行到第三行代码<code>stp x9, x10, [sp, #8]</code>处，<code>stp</code>指令是将寄存器中的值依次存入后面的地址处。我们先打印一下<code>x12</code> <code>x8</code>以及<code>sp</code>的值：</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE3.png"></p>
+<p>那么也就是说第二条指令<code>stp x12, x8, [sp, #24]</code>已经将<code>x12</code>和<code>x8</code>的值存入了<code>sp+24</code>地址处。</p>
+<p>那么我们仔细想想，究竟这两个值在栈上是如何排列的呢？先存入的是<code>x12</code>还是<code>x8</code>呢？第二参数是在<code>sp+24</code>的高地址处还是低地址处呢？</p>
+<p>我们打印一下内存上的信息看一下就知道了：</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE4.png"></p>
+<blockquote>
+<p>/4xb: 就是说从该地址开始，按照1个字节，16进制的方式打印4个单位。<br>/4xw: 按照4个字节，16进制的方式打印4个单位</p>
+<p>更多有关打印格式的请看<a target="_blank" rel="noopener" href="http://blog.chinaunix.net/uid-26980210-id-3300895.html">gdb查看内存区命令</a></p>
+</blockquote>
+<p>跟上面<code>x12</code>和<code>x8</code>比较后，我们可以发现，<strong>内存在打印的时候，每个打印单位（这里是以<code>w</code>格式打印，即4个字节）我们要从右往左看（从高地址到低地址），单位内部还是从左到右为高地址到低地址。</strong>也就是说，第一个打印单位的最右边是当前打印地址（最低地址），最后一个打印单位的最左边是最高地址。如下图所示，图中箭头为从高地址指向低地址：</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE5.png"></p>
+<p>那么，也就是说，<br><code>x12</code>存储在从<code>sp+24 (0x16fd11cc8)</code>到<code>sp+31 (0x16fd11ccf)</code>之间<br><code>x8</code> 存储在从<code>sp+32 (0x16fd11cd0)</code> 到<code>sp+39 (0x16fd11cd7)</code>之间</p>
+<p>则他们之间的具体排列如下图所示</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE6.png"></p>
+<h3 id="小测试（第3、4行命令）"><a href="#小测试（第3、4行命令）" class="headerlink" title="小测试（第3、4行命令）"></a>小测试（第3、4行命令）</h3><p>现在我们大概对数据的排布有一个更深入的理解了，那么，就以第三行命令来测试一下我们是否真的理解了吧！<br>在执行第三条命令之前，我们先看一下<code>x9</code>，<code>x10</code>的值：</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE7.png"></p>
+<p>那么，按照上一条命令的方式，我们来猜测一下内存排布吧。<br><code>stp x9, x10, [sp, #8]</code> 这条命令的意思是，将<code>x9</code>，<code>x10</code>中的值依次放入<code>sp+8</code>所在的位置。那么，到底是存储在<code>sp+8</code>的高地址处，还是低地址处呢？</p>
+<p>其实很好理解，因为栈是向低地址处增长的，如果我们往<code>sp</code>到<code>sp+8</code>处写入这两个寄存器的值，很明显是不够的，这里只有8个字节的空间，而我们需要16个字节，因此<code>sp</code>指针就会往低地址处移动，则栈空间就增大了，但是<code>sp</code>指针并没有改变，这些指令都没有关于要改变栈顶指针的，所以这个想法是错误的。</p>
+<p>也就是说，<strong>在往栈内存储数据时，都在高地址到给定的地址之间存入，即向栈中已分配的空间存入。</strong></p>
+<p>那么，<code>x9</code>，<code>x10</code>依次存储在<code>sp+8 ~ sp+15</code>，<code>sp+16 ~ sp+23</code>之间。</p>
+<p>按照之前讲的打印单位与单位之间是从右往左为从高地址到低地址，单位内的顺序是从左往右，1个地址存储1个字节（8位，两个字符）。<br>我们按照一个字节一个字节的打印（16进制），则</p>
+<ul>
+<li>在<code>sp+8 ~ sp+15</code>处的数据应为：<code>64 c3 af 0b 00 00 00 00</code>；</li>
+<li>在<code>sp+16 ~ sp+31</code>处的数据应为：<code>86 dd a9 b1 00 00 00 00</code>。</li>
+</ul>
+<p>如果我们按照<code>4xw</code>的格式打印，则应该是<code>sp+8: 0x0bafc364 0x00000000</code>，<code>sp+16: 0xb1a9dd86 0x00000000</code></p>
+<p>我们打印一下看看猜测是否正确：</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE8.png"></p>
+<p>完全正确！<br>我们继续往下执行第4条命令：<br><code>str x11, [sp]</code>这条命令的意思是，将<code>x11</code>中的值放入<code>sp</code>所指的地方。我们知道<code>sp</code>是栈顶指针，是栈的最后一个元素所在的位置，所以<code>x11</code>肯定是存储在<code>sp</code>到<code>sp+8</code>之间。<br>打印一下<code>x11</code>的值：</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE9.png"></p>
+<p>那么，依旧按照之前的方法，每个打印单位，要从右往左看：</p>
+<ul>
+<li>那么<code>sp</code>的地址<code>0x16fd11cb0</code>到<code>sp+8 (0x16fd11cb8)</code>之间依次应该为<code>ef e1 0f db 00 00 00 00</code>；</li>
+<li>按照<code>4xw</code>的打印格式则应该为：<code>0x16fd11cb0: 0xdbofelef 0x00000000 0x0bafc364 0x00000000</code> （<code>sp+8 ~ sp+15</code>是刚刚我们执行过的<code>x9</code>的值）</li>
+</ul>
+<p>打印一下：</p>
+<p><img src="/images/2016-10-12-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F/%E5%9B%BE10.png"></p>
+<p>完全正确！<br>好了，现在关于内存栈的数据排列，你是不是有更清晰的图像印在脑海里了呢？</p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83/" title="栈·参数存储排布">https://harpersu00.github.io/2016-10-12-栈·参数存储排布/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2016-09-21-C%E8%AF%AD%E8%A8%80%E7%BC%96%E7%A8%8B%E9%A2%98%EF%BC%882016%E5%B9%B4360%E7%AC%94%E8%AF%95%E4%B9%A0%E9%A2%98%E4%B9%8B%E7%97%85%E6%AF%92%EF%BC%89/" rel="prev" title="C语言编程题（2016年360笔试习题之病毒）">
+      <i class="fa fa-chevron-left"></i> C语言编程题（2016年360笔试习题之病毒）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/" rel="next" title="copy 与 mutableCopy（传说中的深浅拷贝）">
+      copy 与 mutableCopy（传说中的深浅拷贝） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E6%8F%90%E8%A6%81%EF%BC%9A%E6%A0%88%E7%BB%93%E6%9E%84"><span class="nav-number">1.</span> <span class="nav-text">基础提要：栈结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E6%A0%88%E5%90%91%E4%B8%8B%E5%A2%9E%E9%95%BF%EF%BC%9F"><span class="nav-number">1.1.</span> <span class="nav-text">为什么栈向下增长？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E5%88%A4%E6%96%AD%E6%A0%88%E7%9A%84%E5%A2%9E%E9%95%BF%E6%96%B9%E5%90%91%EF%BC%9F"><span class="nav-number">1.2.</span> <span class="nav-text">如何判断栈的增长方向？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E5%8C%BA%E5%88%86%E6%A0%88%E5%BA%95%E5%92%8C%E6%A0%88%E9%A1%B6%EF%BC%9F"><span class="nav-number">1.3.</span> <span class="nav-text">如何区分栈底和栈顶？</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E4%BE%8B"><span class="nav-number">2.</span> <span class="nav-text">实例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B0%8F%E6%B5%8B%E8%AF%95%EF%BC%88%E7%AC%AC3%E3%80%814%E8%A1%8C%E5%91%BD%E4%BB%A4%EF%BC%89"><span class="nav-number">2.1.</span> <span class="nav-text">小测试（第3、4行命令）</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
+                  &emsp;03-07
+                </time>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

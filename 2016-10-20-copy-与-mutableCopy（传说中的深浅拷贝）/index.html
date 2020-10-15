@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="概念对象拷贝有两种方式：浅拷贝和深拷贝。 浅拷贝(shallow copy)，并不拷贝对象本身，仅仅是拷贝指向对象的指针。如果 B &#x3D; [A 浅拷贝]，则 A、B 两个对象中都保存的同一个指针，如果 A 通过这个指针改变了指针指向的对象，那么 B 指针指向的对象也就随之改变了； 深拷贝是直接拷贝整个对象到另一块内存中，开辟新的地址来存储，两个对象至此一别，再无关联。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="copy 与 mutableCopy（传说中的深浅拷贝）">
+<meta property="og:url" content="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/index.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="概念对象拷贝有两种方式：浅拷贝和深拷贝。 浅拷贝(shallow copy)，并不拷贝对象本身，仅仅是拷贝指向对象的指针。如果 B &#x3D; [A 浅拷贝]，则 A、B 两个对象中都保存的同一个指针，如果 A 通过这个指针改变了指针指向的对象，那么 B 指针指向的对象也就随之改变了； 深拷贝是直接拷贝整个对象到另一块内存中，开辟新的地址来存储，两个对象至此一别，再无关联。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSString.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSMutableString.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSMutableString2.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSArray.png">
+<meta property="article:published_time" content="2016-10-19T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-13T08:06:47.554Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://harpersu00.github.io/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSString.png">
+
+<link rel="canonical" href="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>copy 与 mutableCopy（传说中的深浅拷贝） | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          copy 与 mutableCopy（传说中的深浅拷贝）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2016-10-20 00:00:00" itemprop="dateCreated datePublished" datetime="2016-10-20T00:00:00+08:00">2016-10-20</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80%E8%AF%AD%E6%B3%95/" itemprop="url" rel="index"><span itemprop="name">编程语言语法</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h2><p>对象拷贝有两种方式：浅拷贝和深拷贝。</p>
+<p>浅拷贝(shallow copy)，并不拷贝对象本身，<strong>仅仅是拷贝指向对象的指针</strong>。<br>如果 <code>B = [A 浅拷贝]</code>，则 A、B 两个对象中都保存的同一个指针，如果 A 通过这个指针改变了指针指向的对象，那么 B 指针指向的对象也就随之改变了；</p>
+<p>深拷贝是直接<strong>拷贝整个对象到另一块内存中</strong>，开辟新的地址来存储，两个对象至此一别，再无关联。</p>
+<a id="more"></a>
+
+<blockquote>
+<p>对于集合对象（如 NSSArray、NSDictionary 等）而言，又有<strong>单层深拷贝</strong>与<strong>完全拷贝</strong>之分。</p>
+<p>单层深拷贝(one-level-deep copy)：指的是对于被拷贝对象，至少有一层是深拷贝。<br>完全拷贝(real-deep copy)：指的是对于被拷贝对象的每一层都是对象拷贝。</p>
+</blockquote>
+<h2 id="copy-与-mutableCopy"><a href="#copy-与-mutableCopy" class="headerlink" title="copy 与 mutableCopy"></a>copy 与 mutableCopy</h2><p>不管是集合类对象，还是非集合类对象，接收到 copy 和 mutableCopy 消息时，都遵循以下准则：</p>
+<ul>
+<li>copy 返回不可变(imutable)对象，如果对copy返回值使用可变对象方法就会crash；</li>
+<li>mutablCopy 默认返回可变(mutable)对象（如果拷贝后的对象本身是不可变的，那也没法变呀，总不能改变人对象的类型吧，比如 <code>NSString *str2 = [str1 mutableCopy];</code> ）。</li>
+</ul>
+<h2 id="示例头文件"><a href="#示例头文件" class="headerlink" title="示例头文件"></a>示例头文件</h2><p>首先定义了一系列会用到的属性，另外，我在宏定义里去掉了 NSLog 的时间戳，然后定义了 AmyLog ，用来显示对象的所属类，以及地址。</p>
+<table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div></pre></td><td class="code"><pre><div class="line"><span class="meta">#import <span class="meta-string">&lt;Foundation/Foundation.h&gt;</span></span></div><div class="line"></div><div class="line"><span class="meta">#define NSLog(FORMAT, ...) fprintf(stderr, <span class="meta-string">"%s\n"</span>, [[NSString stringWithFormat:FORMAT, ##__VA_ARGS__] UTF8String] )</span></div><div class="line"></div><div class="line"><span class="meta">#define AmyLog(_var) NSLog(@<span class="meta-string">"     (%@ *) %p\n"</span>, [_var class], _var)</span></div><div class="line"></div><div class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">FirstClass</span> : <span class="title">NSObject</span></span></div><div class="line"></div><div class="line"><span class="comment">//非集合类对象</span></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSString</span> *string;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableString</span> *mString;</div><div class="line"></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSString</span> *stringCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSString</span> *stringMutableCopy;</div><div class="line"></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableString</span> *mStringCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableString</span> *mStringMutableCopy;</div><div class="line"></div><div class="line"><span class="comment">//集合类对象</span></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSArray</span> *array;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSArray</span> *arrayCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSArray</span> *arrayMutableCopy;</div><div class="line"></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableArray</span> *mArrayCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableArray</span> *mArrayMutableCopy;</div><div class="line"></div><div class="line"><span class="keyword">@end</span></div></pre></td></tr></tbody></table>
+
+<h2 id="非集合类对象-NSString"><a href="#非集合类对象-NSString" class="headerlink" title="非集合类对象(NSString)"></a>非集合类对象(NSString)</h2><h3 id="执行代码："><a href="#执行代码：" class="headerlink" title="执行代码："></a>执行代码：</h3><table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line">FirstClass *fC = [[FirstClass alloc] init];</div><div class="line">        </div><div class="line">fC.string = <span class="string">@"originString"</span>;</div><div class="line">fC.stringCopy = fC.string;  <span class="comment">//浅，指针 (不可变String）</span></div><div class="line">fC.stringMutableCopy = [fC.string mutableCopy];  <span class="comment">//深，新地址 (可变String)</span></div><div class="line">        </div><div class="line">fC.mStringCopy = [fC.string <span class="keyword">copy</span>];  <span class="comment">//浅，指针 (不可变String）</span></div><div class="line">fC.mStringMutableCopy = [fC.string mutableCopy];  <span class="comment">//深，新地址 (可变String)</span></div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"\n非集合类对象(NSString)：\noriginal address:    "</span>); AmyLog(fC.string);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSString:    "</span>); AmyLog(fC.stringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSString:    "</span>); AmyLog(fC.stringMutableCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSMutableString:   "</span>); AmyLog(fC.mStringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSMutableString:    "</span>); AmyLog(fC.mStringMutableCopy);</div></pre></td></tr></tbody></table>
+
+<h3 id="打印结果："><a href="#打印结果：" class="headerlink" title="打印结果："></a>打印结果：</h3><p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSString.png"></p>
+<h3 id="NSCFConstantString-和-NSCFString"><a href="#NSCFConstantString-和-NSCFString" class="headerlink" title="__NSCFConstantString 和 __NSCFString"></a>__NSCFConstantString 和 __NSCFString</h3><p><strong>__NSCFConstantString</strong></p>
+<blockquote>
+<p>__NSCFConstantString 对象，就是<strong>字符串常量对象，存储在栈上</strong>，创建之后由系统来管理内存释放.相同内容的 NSCFConstantString 对象地址相同。该对象引用计数很大，为固定值不会变化，表示无限运行的 retainCount ，对其进行 retain 或 release 也不会影响其引用计数。</p>
+<p>当创建一个 NSCFConstantString 对象时，会检测这个字符串内容是否已经存在，如果存在，则直接将地址赋值给变量；不存在的话，则创建新地址，再赋值。</p>
+<p>总的来说，<strong>对于 NSCFConstantString 对象，只要字符串内容不变，就不会分配新的内存地址</strong>，无论你是赋值、 retain、 copy 。这种优化在大量使用 NSString 的情况下可以节省内存，提高性能。</p>
+<p>——摘自简书作者路子：<a target="_blank" rel="noopener" href="http://www.jianshu.com/p/0e98f37114e3">NSString：内存简述，Copy与Strong关键字</a></p>
+</blockquote>
+<p>对于 NSString 来说，以下几种赋值方法将会保存为 NSCFConstantString 对象：</p>
+<ol>
+<li>直接赋值，如 <code>NSString *str = @&quot;STR&quot;;</code></li>
+<li>stringWithString ,如 <code>NSString *str = [NSString stringWithString:@&quot;Str&quot;];</code></li>
+<li><code>str1 = str2;</code></li>
+<li><code>str1 = [str2 copy/retain];</code></li>
+</ol>
+<p><strong>__NSCFString</strong></p>
+<p>__NSCFString 对象是 <strong>NSString 的一种子类，存储在堆上</strong>，不属于字符串常量对象。该对象创建之后和其他的 Obj 对象一样引用计数为1，对其执行 retain 和 release 将改变其 retainCount 。</p>
+<p>诸如 <code>[NSString stringWithFormat:]</code> 方法以及 <code>NSMutableString</code> 创建的字符串等，都是构造的这种对象。</p>
+<h3 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h3><p><code>mutableCopy</code> 意味着你告诉编译器，我拷贝过来的这个对象可能会改变，因此编译器肯定会新开辟一个地址给你。 因此采用这种方式的都是深拷贝（包括单层深拷贝和完全拷贝）。<br>通过结果我们也可以看见，正如我们前面所提到的，copy 返回不可变对象，因此对于原始对象是不可变的 NSSring 类型，完全没有必要再新分配一块内存。<strong>因此对于不可变的非集合对象，采用 mutableCopy 方式的拷贝就是深拷贝，copy 是浅拷贝。</strong></p>
+<h2 id="非集合类对象-NSMutableString"><a href="#非集合类对象-NSMutableString" class="headerlink" title="非集合类对象(NSMutableString)"></a>非集合类对象(NSMutableString)</h2><h3 id="执行代码：-1"><a href="#执行代码：-1" class="headerlink" title="执行代码："></a>执行代码：</h3><table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line">fC.mString = [<span class="built_in">NSMutableString</span> stringWithString:<span class="string">@"mStringingi"</span>];</div><div class="line">fC.stringCopy = fC.mString;  <span class="comment">//深，新地址（可变String）</span></div><div class="line">fC.stringMutableCopy = [fC.mString mutableCopy]; <span class="comment">////深，新地址 (可变String)</span></div><div class="line">        </div><div class="line">fC.mStringCopy = [fC.mString <span class="keyword">copy</span>];  <span class="comment">//深，新地址，可变String）</span></div><div class="line">fC.mStringMutableCopy = [fC.mString mutableCopy]; <span class="comment">//深，新地址，(可变String)</span></div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"\n非集合类对象(NSMutableString)：\noriginal address:    "</span>); AmyLog(fC.mString);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSString:    "</span>); AmyLog(fC.stringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSString:    "</span>); AmyLog(fC.stringMutableCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSMutableString:   "</span>); AmyLog(fC.mStringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSMutableString:    "</span>); AmyLog(fC.mStringMutableCopy);</div></pre></td></tr></tbody></table>
+
+<h3 id="打印结果：-1"><a href="#打印结果：-1" class="headerlink" title="打印结果："></a>打印结果：</h3><p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSMutableString.png"></p>
+<h3 id="分析-1"><a href="#分析-1" class="headerlink" title="分析"></a>分析</h3><p>我们已经知道只要用 <code>mutableCopy</code> ，对于非集合对象的拷贝，无论可变不可变，都是深拷贝。 <code>copy</code> 对于不可变对象的拷贝是浅拷贝。那么对于 <code>copy</code> 可变对象呢？如上图的结果所示，是深拷贝。</p>
+<p>也很容易理解，我这个对象是可变的，我随时可能通过其他引用它的指针来改变这个对象，现在你要拷贝一份不可变的内容，编译器当然不能直接把它的指针给你啦，这样岂不就是可变的了？所以要新分配给你一块内存，用来储存你拷贝的不可变内容。</p>
+<p>就是说，<strong>对于可变非集合对象的拷贝，copy 和 mutableCopy 都是做的深拷贝。</strong></p>
+<h3 id="NSTaggedPointerString"><a href="#NSTaggedPointerString" class="headerlink" title="__NSTaggedPointerString"></a>__NSTaggedPointerString</h3><p>Tagged Pointer 是一个能够提升性能、节省内存的有趣的技术。我们知道，程序都使用了指针地址对齐概念。指针地址对齐就是指在分配堆中的内存时往往采用偶数倍或以2为指数倍的内存地址作为地址边界。几乎所有系统架构，包括 Mac OS 和 iOS，都使用了地址对齐概念对象。对于 iOS 和 MAC 来说，指针地址是以16个字节（或16的倍数）为对齐边界的，进一步说，分配的内存地址最后4位永远都是0。</p>
+<p>Tagged Pointer 利用了这一现状，它使对象指针中非零位（最后4位）有了特殊的含义。在苹果的64位 Objective-C 实现中，<strong>若对象指针的最低有效位为1(即奇数)，则该指针为 Tagged Pointer 。这种指针不通过解引用 isa 来获取其所属类，</strong>而是通过接下来三位的一个类表的索引。该索引是用来查找所属类是采用 Tagged Pointer 的哪个类。剩下的60位则留给类来使用。</p>
+<p>Tagged Pointer 有一个简单的应用，那就是 NSNumber 。它使用60位来存储数值。最低位置1。剩下3位为 NSNumber 的标志。这样，就可以存储任何所需内存小于60位的数值。</p>
+<blockquote>
+<p>注：以上是在 x86_64 架构中，<strong>在 iOS ARM64 架构中，是最高4位表示所属类，对于最低位，不同类有不同的意义，比如 NSString 代表的是字符长度 length</strong>，NSNumber 我猜测代表的是数字长度类型。</p>
+</blockquote>
+<p>从外部看，Tagged Pointer很像一个对象。它能够响应消息，因为 objc_msgSend 可以识别 Tagged Pointer 。假设你调用 integerValue ，它将从那60位中提取数值并返回。这样，每访问一个对象，就省下了一次真正对象的内存分配，省下了一次间接取值的时间。同时引用计数可以是空指令，因为没有内存需要释放。对于常用的类，这将是一个巨大的性能提升。</p>
+<p>NSString 也是如此。对于那些所需内存小于60位的字符串，它可以创建一个 Tagged Pointer。所需内存大于60位的则放置在真正的 NSString 对象里。这使得常用的短字符串的性能得到明显的提升。</p>
+<p>关于 NSString 中的 Tagged Pointer 编码比较复杂，条件是<strong>长度小于11位，且由 Apple 的代码生成在运行时</strong>，即不是直接定义，而是如上图中 mutableCopy/copy 转换而来，编码详情请见<a target="_blank" rel="noopener" href="http://www.cocoachina.com/ios/20150918/13449.html">【译】采用Tagged Pointer的字符串</a></p>
+<blockquote>
+<p>在 WWDC2013 中 APPLE 对于它的特点是这样总结的：</p>
+<ol>
+<li>Tagged Pointer 专门用来存储小的对象，例如 NSNumber 和NSDate</li>
+<li><strong>Tagged Pointer 指针的值不再是地址了，而是真正的值。所以，实际上它不再是一个对象了，它只是一个披着对象皮的普通变量而已。所以，它的内存并不存储在堆中，也不需要 malloc 和 free 。</strong>跟 __NSCFConstantString 一样拥有非常大的 retainCount ，因为压根儿就不在堆上啊。</li>
+<li>在内存读取上有着3倍的效率，创建时比以前快106倍。</li>
+</ol>
+</blockquote>
+<p>对 NSString 对象来说，当非字面量的数字，英文字母字符串的长度小于等于11的时候会自动成为 NSTaggedPointerString 类型（赋值为常量除外），如果有中文或其他特殊符号（可能是非 ASCII 字符）存在的话则会直接成为 __NSCFString 类型。</p>
+<p><strong>Tagged Pointer 举例</strong><br>比如我们将上面的字符串改为<br><code>fC.mString = [NSMutableString stringWithString:@&quot;mStringingin&quot;];</code>，<br>比之前少了1位，只有11位，则输出结果就变为了：</p>
+<p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSMutableString2.png"></p>
+<p>除了拷贝的可变副本（最后一个），其他不可变副本都是 Tagged Pointer ，直接存储的值。</p>
+<h2 id="集合类对象-NSArray"><a href="#集合类对象-NSArray" class="headerlink" title="集合类对象(NSArray)"></a>集合类对象(NSArray)</h2><h3 id="执行代码：-2"><a href="#执行代码：-2" class="headerlink" title="执行代码："></a>执行代码：</h3><table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line">fC.array = [<span class="built_in">NSArray</span> arrayWithObjects:<span class="string">@"hello"</span>,<span class="string">@"world"</span>,<span class="string">@"baby"</span>, <span class="literal">nil</span>];</div><div class="line">fC.arrayCopy = fC.array;  <span class="comment">//浅，指针</span></div><div class="line">fC.arrayMutableCopy = [fC.array mutableCopy]; <span class="comment">//单层深，新地址</span></div><div class="line">        </div><div class="line">fC.mArrayCopy = [fC.array <span class="keyword">copy</span>]; <span class="comment">//浅，指针</span></div><div class="line">fC.mArrayMutableCopy = [fC.array mutableCopy]; <span class="comment">//单层深，新地址</span></div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"\n集合类对象(NSArray)：\noriginal address:    "</span>); AmyLog(fC.array); AmyLog([fC.array objectAtIndex:<span class="number">1</span>]);</div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSArray:    "</span>); AmyLog(fC.arrayCopy); AmyLog([fC.arrayCopy objectAtIndex:<span class="number">1</span>]);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSArray:    "</span>); AmyLog(fC.arrayMutableCopy); AmyLog([fC.arrayMutableCopy objectAtIndex:<span class="number">1</span>]);</div><div class="line"></div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSMutableArray:   "</span>); AmyLog(fC.mArrayCopy); AmyLog([fC.mArrayCopy objectAtIndex:<span class="number">1</span>]);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSMutableArray:    "</span>); AmyLog(fC.mArrayMutableCopy); AmyLog([fC.mArrayMutableCopy objectAtIndex:<span class="number">1</span>]);</div></pre></td></tr></tbody></table>
+
+<h3 id="打印结果：-2"><a href="#打印结果：-2" class="headerlink" title="打印结果："></a>打印结果：</h3><p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSArray.png"></p>
+<h3 id="分析-2"><a href="#分析-2" class="headerlink" title="分析"></a>分析</h3><p>从结果可以发现，对于第一层的指针来说，跟 NSString 是一样的，copy 浅拷贝（复制指针，即指针不变）， mutableCopy 深拷贝（新内存），但是打印数组中的元素，就发现元素的指针并没有变，也就是第二层依然是浅拷贝，因此这就是单层深拷贝了。</p>
+<h3 id="集合的浅拷贝和完全拷贝"><a href="#集合的浅拷贝和完全拷贝" class="headerlink" title="集合的浅拷贝和完全拷贝"></a>集合的浅拷贝和完全拷贝</h3><p>集合的浅拷贝有非常多种方法（上面那种 copy 就是）。当你进行浅拷贝时，会向原始的集合发送retain消息，引用计数加1，同时指针被拷贝到新的集合。</p>
+<p>现在让我们看一些浅拷贝的例子：</p>
+<table><tbody><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">NSArray</span> *shallowCopyArray = [someArray copyWithZone:<span class="literal">nil</span>];   </div><div class="line"><span class="built_in">NSSet</span> *shallowCopySet = [<span class="built_in">NSSet</span> mutableCopyWithZone:<span class="literal">nil</span>];   </div><div class="line"><span class="built_in">NSDictionary</span> *shallowCopyDict = [[<span class="built_in">NSDictionary</span> alloc] initWithDictionary:someDictionary copyItems:<span class="literal">NO</span>];</div></pre></td></tr></tbody></table>
+
+<p>那么如何才能对元素也进行深拷贝呢？</p>
+<p>集合的深拷贝有两种方法。可以用 initWithArray:copyItems: 将第二个参数设置为 YES 即可深拷贝，如</p>
+<table><tbody><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">NSDictionary</span> shallowCopyDict = [[<span class="built_in">NSDictionary</span> alloc] initWithDictionary:someDictionary copyItems:<span class="literal">YES</span>];</div></pre></td></tr></tbody></table>
+
+<p>如果你用这种方法深拷贝，集合里的每个对象都会收到 copyWithZone: 消息。如果集合里的对象遵循 NSCopying 协议，那么对象就会被深拷贝到新的集合。如果对象没有遵循 NSCopying 协议，而尝试用这种方法进行深拷贝，会在运行时出错。 copyWithZone: 这种拷贝方式只能够提供一层内存拷贝(one-level-deep copy)，而非真正的深拷贝。</p>
+<p>第二个方法是将集合进行归档(archive)，然后解档(unarchive)，如：</p>
+<table><tbody><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="built_in">NSArray</span> *trueDeepCopyArray = [<span class="built_in">NSKeyedUnarchiver</span> unarchiveObjectWithData:[<span class="built_in">NSKeyedArchiver</span> archivedDataWithRootObject:oldArray]];</div></pre></td></tr></tbody></table>
+
+<p>终于搞定这个了！</p>
+<hr>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] NSString：内存简述，Copy与Strong关键字　<a target="_blank" rel="noopener" href="http://www.jianshu.com/p/0e98f37114e3">http://www.jianshu.com/p/0e98f37114e3</a><br>[2] iOS 集合的深复制与浅复制　<a target="_blank" rel="noopener" href="https://www.zybuluo.com/MicroCai/note/50592">https://www.zybuluo.com/MicroCai/note/50592</a><br>[3] 深入理解Tagged Pointe　<a target="_blank" rel="noopener" href="http://www.infoq.com/cn/articles/deep-understanding-of-tagged-pointer/">http://www.infoq.com/cn/articles/deep-understanding-of-tagged-pointer/</a><br>[4] 【译】采用Tagged Pointer的字符串　<a target="_blank" rel="noopener" href="http://www.cocoachina.com/ios/20150918/13449.html">http://www.cocoachina.com/ios/20150918/13449.html</a></p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/2016-10-20-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/" title="copy 与 mutableCopy（传说中的深浅拷贝）">https://harpersu00.github.io/2016-10-20-copy-与-mutableCopy（传说中的深浅拷贝）/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2016-10-12-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%8E%92%E5%B8%83/" rel="prev" title="栈·参数存储排布">
+      <i class="fa fa-chevron-left"></i> 栈·参数存储排布
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2016-11-09-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend/" rel="next" title="通过汇编解读 objc_msgSend">
+      通过汇编解读 objc_msgSend <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A6%82%E5%BF%B5"><span class="nav-number">1.</span> <span class="nav-text">概念</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#copy-%E4%B8%8E-mutableCopy"><span class="nav-number">2.</span> <span class="nav-text">copy 与 mutableCopy</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B%E5%A4%B4%E6%96%87%E4%BB%B6"><span class="nav-number">3.</span> <span class="nav-text">示例头文件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9D%9E%E9%9B%86%E5%90%88%E7%B1%BB%E5%AF%B9%E8%B1%A1-NSString"><span class="nav-number">4.</span> <span class="nav-text">非集合类对象(NSString)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%89%A7%E8%A1%8C%E4%BB%A3%E7%A0%81%EF%BC%9A"><span class="nav-number">4.1.</span> <span class="nav-text">执行代码：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%89%93%E5%8D%B0%E7%BB%93%E6%9E%9C%EF%BC%9A"><span class="nav-number">4.2.</span> <span class="nav-text">打印结果：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NSCFConstantString-%E5%92%8C-NSCFString"><span class="nav-number">4.3.</span> <span class="nav-text">__NSCFConstantString 和 __NSCFString</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90"><span class="nav-number">4.4.</span> <span class="nav-text">分析</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9D%9E%E9%9B%86%E5%90%88%E7%B1%BB%E5%AF%B9%E8%B1%A1-NSMutableString"><span class="nav-number">5.</span> <span class="nav-text">非集合类对象(NSMutableString)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%89%A7%E8%A1%8C%E4%BB%A3%E7%A0%81%EF%BC%9A-1"><span class="nav-number">5.1.</span> <span class="nav-text">执行代码：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%89%93%E5%8D%B0%E7%BB%93%E6%9E%9C%EF%BC%9A-1"><span class="nav-number">5.2.</span> <span class="nav-text">打印结果：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90-1"><span class="nav-number">5.3.</span> <span class="nav-text">分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NSTaggedPointerString"><span class="nav-number">5.4.</span> <span class="nav-text">__NSTaggedPointerString</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9B%86%E5%90%88%E7%B1%BB%E5%AF%B9%E8%B1%A1-NSArray"><span class="nav-number">6.</span> <span class="nav-text">集合类对象(NSArray)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%89%A7%E8%A1%8C%E4%BB%A3%E7%A0%81%EF%BC%9A-2"><span class="nav-number">6.1.</span> <span class="nav-text">执行代码：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%89%93%E5%8D%B0%E7%BB%93%E6%9E%9C%EF%BC%9A-2"><span class="nav-number">6.2.</span> <span class="nav-text">打印结果：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90-2"><span class="nav-number">6.3.</span> <span class="nav-text">分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9B%86%E5%90%88%E7%9A%84%E6%B5%85%E6%8B%B7%E8%B4%9D%E5%92%8C%E5%AE%8C%E5%85%A8%E6%8B%B7%E8%B4%9D"><span class="nav-number">6.4.</span> <span class="nav-text">集合的浅拷贝和完全拷贝</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Reference"><span class="nav-number">7.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
+                  &emsp;03-07
+                </time>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

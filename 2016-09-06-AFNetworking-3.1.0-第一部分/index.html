@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="写在前面我主要根据作者polobymulberry的博客AFNetworking源码阅读系列来学习，因为我有很多知识不懂，所以有些地方可能会记录得过于繁琐。原作者的大体流程和记录不变，某些知识点会有自己的补充。在此非常感谢博客作者polobymulberry的分享。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AFNetworking 3.1.0 第一部分">
+<meta property="og:url" content="https://harpersu00.github.io/2016-09-06-AFNetworking-3.1.0-%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86/index.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="写在前面我主要根据作者polobymulberry的博客AFNetworking源码阅读系列来学习，因为我有很多知识不懂，所以有些地方可能会记录得过于繁琐。原作者的大体流程和记录不变，某些知识点会有自己的补充。在此非常感谢博客作者polobymulberry的分享。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2016-09-05T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-13T07:23:28.268Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://harpersu00.github.io/2016-09-06-AFNetworking-3.1.0-%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>AFNetworking 3.1.0 第一部分 | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2016-09-06-AFNetworking-3.1.0-%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AFNetworking 3.1.0 第一部分
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2016-09-06 00:00:00" itemprop="dateCreated datePublished" datetime="2016-09-06T00:00:00+08:00">2016-09-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">源码解析</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="写在前面"><a href="#写在前面" class="headerlink" title="写在前面"></a><strong>写在前面</strong></h2><p>我主要根据作者polobymulberry的博客<a target="_blank" rel="noopener" href="http://www.cnblogs.com/polobymulberry/category/785705.html">AFNetworking源码阅读系列</a>来学习，因为我有很多知识不懂，所以有些地方可能会记录得过于繁琐。原作者的大体流程和记录不变，某些知识点会有自己的补充。在此非常感谢博客作者polobymulberry的分享。</p>
+<a id="more"></a>
+
+<blockquote>
+<p>第一次运行运行example时总是出现 Module ‘AFNetworking’ not found 问题，查了好多关于Module的资料，对于问题的解决却没有帮助，后来偶然间在AFNetworking的github上的issues里找到解决办法，真是特别惭愧。应该点击文件夹内的<code>AFNetworking.xcworkspace</code>，而不是其他<code>.xcodeproj</code>文件。</p>
+</blockquote>
+<p>图片1</p>
+<p>运行成功后，就开始我们艰难的学习旅程吧！</p>
+<h2 id="开始"><a href="#开始" class="headerlink" title="开始"></a><strong>开始</strong></h2><h3 id="AppDelegate"><a href="#AppDelegate" class="headerlink" title="AppDelegate"></a>AppDelegate</h3><p>此文件主要就是实现函数didFinishLaunchingWithOptions。将windows的rootViewController设置为rootViewController为GlobaltimelineViewController的NavigationController。此处有两点需要注意一下：</p>
+<p>第一处</p>
+<figure class="highlight angelscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:<span class="number">4</span> * <span class="number">1024</span> * <span class="number">1024</span> diskCapacity:<span class="number">20</span> * <span class="number">1024</span> * <span class="number">1024</span> diskPath:nil];</span><br><span class="line">[NSURLCache setSharedURLCache:URLCache];</span><br></pre></td></tr></table></figure>
+
+<p>NSURLCache 为您的应用的 URL 请求提供了内存中（对应memoryCapacity）以及磁盘上（对应diskCapacity）的综合缓存机制。所以你想使用NSURLCache带来的好处，就需要在此处设置一个sharedURLCache。</p>
+<p>第二处</p>
+<figure class="highlight scheme"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[[<span class="name">AFNetworkActivityIndicatorManager</span> sharedManager] setEnabled:YES]<span class="comment">;</span></span><br></pre></td></tr></table></figure>
+
+<p>为了说明AFNetworkingActivityIndicator是什么，直接上图：</p>
+<p>图2</p>
+<p>当你有session task正在运行时，这个小菊花就会转啊转。这个是自动检测的，只需要你设置AFNetworkingActivityIndicatorManager的sharedManager中的enabled设为YES即可。</p>
+<p>这里我简单看了下AFNetworkingActivityIndicatorManager，发现它对外接口不多，比较容易理解它的业务流程。所以我准备在第三部分就将AFNetworkingActivityIndicatorManager的源码拿下。</p>
+<p>设置完了cache和AFNetworkingActivityIndicator，接着就是进入GlobalTimelineViewController（UITableViewController）了。这里我学到一个，就是UITableViewController可以使用initWithStyle进行初始化。（<strong>因为我对iOS界面不太了解，所以这个initWithStyle现在并不懂</strong>）</p>
+<blockquote>
+<p>polobymulberry在开篇画了一个iOS Example的代码结构图，我不太懂MVC，特地查了下。以下是我个人非常粗浅的了解：</p>
+<ul>
+<li><p>M代表Model，V代表View，C代表Cotroller。这是一种设计模式，是想让各模块分离，视图跟数据处理以及中间的控制协调端各司其职。</p>
+</li>
+<li><p>视图只用于展现APP的界面，用于人和程序的交互。至于你点击按钮后产生的反馈，是由Controller来传递给Model处理，比如点击按钮后，会在文本框内展现文字。则Model从数据库中读取文字并通知Controller，事件已经处理完，Controller收到通知然后决定怎么处理，比如通过outlet控制View展示文字。</p>
+</li>
+<li><p>注意View和Model之间并不直接通信。</p>
+<p>图3</p>
+</li>
+</ul>
+<p>参考自<a target="_blank" rel="noopener" href="http://blog.csdn.net/nhwslxf123/article/details/49703773">实际案例讲解iOS设计模式——MVC模式</a></p>
+</blockquote>
+<h3 id="GlobalTimelineViewController"><a href="#GlobalTimelineViewController" class="headerlink" title="GlobalTimelineViewController"></a>GlobalTimelineViewController</h3><p>主要是围绕UITableView的delegate和dataSource来说。</p>
+<h5 id="1-UITableViewDelegate"><a href="#1-UITableViewDelegate" class="headerlink" title="1) UITableViewDelegate"></a>1) UITableViewDelegate</h5><p>主要是计算heightForRowAtIndexPath这个函数比较麻烦（应该是<code>-(CGFloat)tableView:heightForRowAtIndexPath:</code>函数），这里的Cell比较简单，可以直接使用posts中存储的text值来计算高度，核心代码就下面这句：</p>
+<figure class="highlight objectivec"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">CGRect</span> rectToFit = [text boundingRectWithSize:<span class="built_in">CGSizeMake</span>(<span class="number">240.0</span>f, <span class="built_in">CGFLOAT_MAX</span>) options:<span class="built_in">NSStringDrawingUsesLineFragmentOrigin</span> attributes:@&#123;<span class="built_in">NSFontAttributeName</span>: [<span class="built_in">UIFont</span> systemFontOfSize:<span class="number">12.0</span>f]&#125; context:<span class="literal">nil</span>];</span><br></pre></td></tr></table></figure>
+
+<p>对于boundingRectWithSize的使用又增进了一步。（<strong>这里我也不懂</strong>）</p>
+<h5 id="2-UITableViewDataSource"><a href="#2-UITableViewDataSource" class="headerlink" title="2) UITableViewDataSource"></a>2) UITableViewDataSource</h5><p>主要是用posts作为数据源，而posts的获取在此处尤为关键，是通过Post本身（model）的globalTimelinePostsWithBlock函数获取数据的，这里作者将网络端的请求放在了model里面。</p>
+<p>接着调用了refreshControl控件的setRefreshingWithStateOfTask:。setRefreshingWithStateOfTask:其实是UIRefreshControl+AFNetworking的一个category中定义的。UIRefreshControl+AFNetworking的源码很简单，放在第四部分讲。</p>
+<p>注意setRefreshingWithStateOfTask:有一个参数就是NSURLSessionTask*。而这个NSURLSessionTask的获取是调用了Post类中的globalTimelinePostsWithBlock:函数。</p>
+<p>在globalTimelinePostsWithBlock:函数中其实封装了一层AFHTTPSessionManager的GET函数</p>
+<figure class="highlight objectivec"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="keyword">nullable</span> <span class="built_in">NSURLSessionDataTask</span> *)GET:(<span class="built_in">NSString</span> *)URLString</span><br><span class="line">                            parameters:(<span class="keyword">nullable</span> <span class="keyword">id</span>)parameters</span><br><span class="line">                              progress:(<span class="keyword">nullable</span> <span class="keyword">void</span> (^)(<span class="built_in">NSProgress</span> *downloadProgress)) downloadProgress</span><br><span class="line">                              success:(<span class="keyword">nullable</span> <span class="keyword">void</span> (^)(<span class="built_in">NSURLSessionDataTask</span> *task, <span class="keyword">id</span> _Nullable responseObject))success</span><br><span class="line">                                failure:(<span class="keyword">nullable</span> <span class="keyword">void</span> (^)(<span class="built_in">NSURLSessionDataTask</span> * _Nullable task, <span class="built_in">NSError</span> *error))failure;</span><br></pre></td></tr></table></figure>
+
+<p>具体细节后面讨论，此处我们知道是根据一个url获取到服务器端的数据即可。注意获取到的数据是JSON格式的，这里作者在Post类，即Model中定义了一个JSON—-&gt;Model函数-initWithAttributes，，也就是说模型数据转化部分也放在了model中。</p>
+<p>另外，调用GET方法不是直接用AFHTTPSessionManager的manager，而是又定义了一个AFAppDotNetAPIClient，继承自AFHTTPSessionManager。并在其定义的单例模式中简单地封装了一些AFHTTPSessionManager的设置。</p>
+<figure class="highlight objectivec"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">+ (<span class="keyword">instancetype</span>)sharedClient &#123;</span><br><span class="line">       <span class="keyword">static</span> AFAppDotNetAPIClient *_sharedClient = <span class="literal">nil</span>;</span><br><span class="line">       <span class="keyword">static</span> <span class="built_in">dispatch_once_t</span> onceToken;</span><br><span class="line">    <span class="built_in">dispatch_once</span>(&amp;onceToken, ^&#123;</span><br><span class="line">        <span class="comment">// 初始化HTTP Client的base url，此处为@&quot;https://api.app.net/&quot;</span></span><br><span class="line">        _sharedClient = [[AFAppDotNetAPIClient alloc] initWithBaseURL:[<span class="built_in">NSURL</span> URLWithString:AFAppDotNetAPIBaseURLString]];</span><br><span class="line">           <span class="comment">// 设置HTTP Client的安全策略为AFSSLPinningModeNone</span></span><br><span class="line">        _sharedClient.securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeNone];</span><br><span class="line">&#125;);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> _sharedClient;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>知识点：SSL Pinning</p>
+<p>Https对比Http已经很安全，但在建立安全链接的过程中，可能遭受中间人攻击。防御这种类型攻击的最直接方式是Client使用者能正确鉴定Server发的证书【目前很多浏览器在这方面做的足够好，用户只要不在遇到警告时还继续其中的危险操作】，而对于Client的开发者而言，一种方式保持一个可信的根证书颁发机构列表，确认可信的证书，警告或阻止不是可信根证书颁发机构颁发的证书。</p>
+<p>SSL Pinning其实就是证书绑定，一般浏览器的做法是信任可信根证书颁发机构颁发的证书，但在移动端【非浏览器的桌面应用亦如此】，应用只和少数的几个Server有交互，所以可以做得更极致点，直接就在应用内保留需要使用的具体Server的证书。对于iOS开发者而言，如果使用AFNetwoking作为网络库，那么要做到这点就很方便，直接证书作为资源打包进去就好，AFNetworking会自动加载，具体代码就不贴了，nsscreencast已经有很好的tutorial。</p>
+<p>至于model根据网络层获取的数据赋值，除了user的头像那块比较难，因为涉及到UIImageView+AFNetworking等文件，其他部分很简单。而AFNetworking的UIImageView+AFNetworking的部分其实很类似SDWebImage的思路。</p>
+<h5 id="Add：BLock作为函数参数"><a href="#Add：BLock作为函数参数" class="headerlink" title="Add：BLock作为函数参数"></a>Add：BLock作为函数参数</h5><p><code>block原本的形式为:</code></p>
+<p><code>返回值 (^block名称 可省) (参数 可省) ＝ ^&#123;函数体&#125;;</code><br><code>调用形式： block名称(参数);</code></p>
+<p>在GlobalTimelineViewController.m <code>- (void)reload:</code> 函数中遇到了第一个block</p>
+<figure class="highlight objectivec"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">NSURLSessionTask</span> *task = [Post globalTimelinePostsWithBlock:^(<span class="built_in">NSArray</span> *posts, <span class="built_in">NSError</span> *error) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!error) &#123;</span><br><span class="line">            <span class="keyword">self</span>.posts = posts;</span><br><span class="line">            [<span class="keyword">self</span>.tableView reloadData];</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;];</span><br></pre></td></tr></table></figure>
+
+<p><code>^(NSArray *posts, NSError *error)&#123;&#125;</code> 整个block作为参数传递给<code>+ (NSURLSessionDataTask *)globalTimelinePostsWithBlock:</code>函数</p>
+<blockquote>
+<p>参数传递只需要 ^(参数){block函数体}</p>
+<p>^表明是block形式</p>
+</blockquote>
+<p>Post.m <code>+ (NSURLSessionDataTask *)globalTimelinePostsWithBlock:</code>函数:</p>
+<figure class="highlight objectivec"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">+ (<span class="built_in">NSURLSessionDataTask</span> *)globalTimelinePostsWithBlock:(<span class="keyword">void</span> (^)(<span class="built_in">NSArray</span> *posts, <span class="built_in">NSError</span> *error))block &#123;</span><br><span class="line">                 ......</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>即这个函数的参数为(void (^)(NSArray <em>posts, NSError</em> error))block</p>
+<p>(返回值 (^)(参数))block名称</p>
+</blockquote>
+<p>也就是说在block作为函数参数传递时，定义block的这个A函数(<code>globalTimelinePostsWithBlock:</code>)并没有block函数体，而是调用A函数(<code>[Post globalTimelinePostsWithBlock:]</code>)在传参数时定义block的具体执行内容。</p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/2016-09-06-AFNetworking-3.1.0-%E7%AC%AC%E4%B8%80%E9%83%A8%E5%88%86/" title="AFNetworking 3.1.0 第一部分">https://harpersu00.github.io/2016-09-06-AFNetworking-3.1.0-第一部分/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2016-08-29-%EF%BC%88%E8%AF%91%EF%BC%89iOS-Kernel-Heap-Armageddon-%E2%80%94%E2%80%94-Stefan-Esser/" rel="prev" title="（译）iOS Kernel Heap Armageddon —— Stefan Esser">
+      <i class="fa fa-chevron-left"></i> （译）iOS Kernel Heap Armageddon —— Stefan Esser
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2016-09-08-@property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/" rel="next" title="property 中的常用关键字分析">
+      property 中的常用关键字分析 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%99%E5%9C%A8%E5%89%8D%E9%9D%A2"><span class="nav-number">1.</span> <span class="nav-text">写在前面</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%80%E5%A7%8B"><span class="nav-number">2.</span> <span class="nav-text">开始</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#AppDelegate"><span class="nav-number">2.1.</span> <span class="nav-text">AppDelegate</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#GlobalTimelineViewController"><span class="nav-number">2.2.</span> <span class="nav-text">GlobalTimelineViewController</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#1-UITableViewDelegate"><span class="nav-number">2.2.0.1.</span> <span class="nav-text">1) UITableViewDelegate</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#2-UITableViewDataSource"><span class="nav-number">2.2.0.2.</span> <span class="nav-text">2) UITableViewDataSource</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#Add%EF%BC%9ABLock%E4%BD%9C%E4%B8%BA%E5%87%BD%E6%95%B0%E5%8F%82%E6%95%B0"><span class="nav-number">2.2.0.3.</span> <span class="nav-text">Add：BLock作为函数参数</span></a></li></ol></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
+                  &emsp;03-07
+                </time>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

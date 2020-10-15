@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前情提要在上一篇博文“Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx”中，我分析了 MSHookMessageEx 以前的老代码，也就是 iOS5 版本。那么在这一篇文中，我将通过逆向来分析新版的 MSHookMessageEx。 两个版本的大部分代码和流程都差不多，主要区别在于，当 hook 的方法不是本类方法的时候，老版本的代码是通过嵌入机器码来获取 IM">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">
+<meta property="og:url" content="https://harpersu00.github.io/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/index.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="前情提要在上一篇博文“Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx”中，我分析了 MSHookMessageEx 以前的老代码，也就是 iOS5 版本。那么在这一篇文中，我将通过逆向来分析新版的 MSHookMessageEx。 两个版本的大部分代码和流程都差不多，主要区别在于，当 hook 的方法不是本类方法的时候，老版本的代码是通过嵌入机器码来获取 IM">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/MobileSubstrate.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateBootstrap_dlopen.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/dlopen.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateLoader.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateLoader_dlopen.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/CydiaSubstrate.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/%E5%8A%A8%E5%9B%BE.gif">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/sub_10000.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/MSCloseTable.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/trampoline.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/sub_5F20.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/mprotect.png">
+<meta property="article:published_time" content="2017-03-22T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-13T10:12:07.963Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://harpersu00.github.io/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/MobileSubstrate.png">
+
+<link rel="canonical" href="https://harpersu00.github.io/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2017-03-23 00:00:00" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">2017-03-23</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">源码解析</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前情提要"><a href="#前情提要" class="headerlink" title="前情提要"></a>前情提要</h2><p>在上一篇博文“<a target="_blank" rel="noopener" href="https://amywushu.github.io/2017/03/07/%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx.html">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>”中，我分析了 MSHookMessageEx 以前的老代码，也就是 iOS5 版本。那么在这一篇文中，我将通过逆向来分析新版的 MSHookMessageEx。</p>
+<p>两个版本的大部分代码和流程都差不多，主要区别在于，当 hook 的方法不是本类方法的时候，老版本的代码是通过嵌入机器码来获取 IMP，新版本是通过构建 trampoline（蹦床）页来获取 IMP。</p>
+<a id="more"></a>
+
+<h2 id="如何调试"><a href="#如何调试" class="headerlink" title="如何调试"></a>如何调试</h2><p>我们使用 CydiaSubstrate 框架对 APP 作 hook 操作的话，它是会在 /Library/MobileSubstarte/DynamicLibraries/ 目录下生成一个 .dylib 文件和一个对应的 plist 文件。这个 .dylib 文件将在 App 启动时被 dyld 加载到程序中，对指定类的方法进行 hook。</p>
+<ol>
+<li>在 iPhone 的 /Library/MobileSubstarte/ 目录下有一个 <strong>MobileSubstrate.dylib</strong> 文件，这只是一个链接文件，它的真身是在 /Library/Frameworks/CydiaSubstrate.framework/Librarys/ 目录下的 SubstrateBootstrap.dylib 文件。</li>
+<li>这个动态库会被加载入每个 App 进程中，然后调用同目录下的 <strong>SubstrateLoader.dylib</strong> 动态库。</li>
+<li>通过 SubstrateLoader.dylib 来启动上级目录下的 Mach-O 文件： <strong>CydiaSubstrate</strong>。关于 MSHookMessageEx 的代码即在这个可执行文件中。</li>
+<li>最后通过 CydiaSubstrate 来加载该 App 对应的，位于 /Library/MobileSubstarte/DynamicLibraries/ 目录下的 hook dylib 文件，从而完成 hook 操作。</li>
+</ol>
+<p><strong>这些动作都发生在 main 函数被调用之前。</strong></p>
+<p>程序启动后，不会再调用 MSHookMessageEx 函数，而是直接通过已被设置的 IMP 值跳到自定义的 hook dylib 中。因此我们要进入 CydiaSubstrate 可执行文件中动态调试 MSHookMessageEx 函数，就需要<strong>将断点下在第3步和第4步之间</strong>。</p>
+<p>准备工作：自己构建的 App，hook 该 App 的 dylib。（这两个程序均已在越狱 iPhone 上安装好）</p>
+<p>首先添加 Symbolic Breakpoint（符号断点）<code>_objc_init</code>，然后运行 App，当程序停在断点处时，在控制台输入 <code>image list -o -f</code> 命令，可以看见，与 Cydia 相关的文件，目前就只加载了 MobileSubstrate.dylib。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/MobileSubstrate.png"></p>
+<p>在 IDA 中打开它的真身 SubstrateBootstrap.dylib，可以看见自定义的函数只有一个 InitFunc_0，其余几个函数（exit、dlclose、dlopen、getenv）都是从外部引用的。而 InitFunc_0 函数也非常简单。主要是通过 dlopen 函数调用几个动态库，来作环境准备，其中我们要下断点的地方就在 dlopen 调用 SubstrateLoader.dylib 时：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateBootstrap_dlopen.png"></p>
+<p>我这边的版本是在0x3DF8地址处，加上 ASLR 偏移，用 <code>br s -a xxx</code> 命令在这个地方下一个断点，然后通过 si 命令进入 dlopen 函数，然后执行到 br x16 的地方，再 si 进入系统库（libdyld.dylib）中的 dlopen 函数。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/dlopen.png"></p>
+<p>dlopen 函数会通过 _dyld_func_lookup 找到对应的 dylib 的地址，然后在最后几行命令中的 blr x8 调用该动态库，我们直接在这条指令的下一条指令下断点，然后 c 运行程序跳到该断点。这时候再使用 image list -o -f 命令，就会发现 SubstrateLoader.dylib 动态库已经被加载起来了。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateLoader.png"></p>
+<p>既然我们已经知道是通过 dlopen 来加载的程序，那么用 IDA 打开 SubstrateLoader.dylib 文件，引用 dlopen 的只有三处：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/SubstrateLoader_dlopen.png"></p>
+<p>可以在这三处都下断点，然后看是哪一处启动了 CydiaSubstrate Mach-O 文件。结果证明是在 InitFunc_0_0 + 0x1AC8 处的 dlopen 调用了 CydiaSubstrate。</p>
+<p>在控制台中下断点（SubstrateLoader.dylib 的 ASLR + 0x1AC8），运行程序，然后同样进入 dlopen，在blr x8 的下一条指令处下断点，当程序断在这里时，就会发现我们最终要调试的 CydiaSubstrate 文件终于被加载起来了。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/CydiaSubstrate.png"></p>
+<p>然后在 IDA 里面找到 MSHookMessageEx 函数的起点地址（我的版本是0x5908），再下断点，然后运行，就到 MSHookMessageEx 函数里了。</p>
+<p>以下是整个流程的动图：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/%E5%8A%A8%E5%9B%BE.gif"></p>
+<h2 id="逆向分析"><a href="#逆向分析" class="headerlink" title="逆向分析"></a>逆向分析</h2><h3 id="异同点"><a href="#异同点" class="headerlink" title="异同点"></a>异同点</h3><p>通过阅读 IDA 中的汇编代码我们会发现，整个流程以及大部分的代码都与我上一篇博文中讲的老版本的源代码非常相似。</p>
+<ul>
+<li><code>sub_14130</code> 函数是新增的，涉及到调用 “/usr/sbin/aslmanager”、”/usr/lib/system/libsystem_sandbox.dylib” 等动态库，貌似是在做沙盒权限检查（此点存疑）。</li>
+<li><code>sub_5E6C</code>函数即是之前的 MSFindMethod 函数。</li>
+<li><code>sub_10000</code> 函数则做的 if (!direct){…} 这段代码的工作。</li>
+</ul>
+<p>很多部分大致相同，这些地方不做过多介绍，接下来主要讲解的是 sub_10000 函数。</p>
+<h3 id="sub-10000"><a href="#sub-10000" class="headerlink" title="sub_10000"></a>sub_10000</h3><p>在 IDA 中查看 sub_10000 函数的主要部分（ARM64）：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/sub_10000.png"></p>
+<p>蓝绿色部分是正常执行流程，可以看到主要使用了三个函数： vm_allocate()、vm_deallocate()、vm_remap()。</p>
+<p>这里涉及到一个 <code>trampoline</code>（蹦床）的概念。在很多时候，我们并不能直接执行我们想要的代码，而需要一个跳转代码或者跳转页面，经过一次或多次的跳转，最后跳到目的代码处执行。生成的这个跳转的代码或者页面就称之为 trampoline。</p>
+<p><strong>在本函数中，target_address 页面就是 trampoline page。</strong></p>
+<p>蹦床通常利用可写代码页（即具有可写、可执行权限）来实现。将指令写入 PROT_EXEC | PROT_WRITE 页面，需要的上下文信息直接包含在生成的代码中。</p>
+<p>但是 iOS 中不允许 PROT_EXEC、 PROT_WRITE 这两种权限同时出现在页面中，也就是说不存在可写代码页（在我的测试中，ARMv7是可以的）。那么就需要使用一种替代机制来是实现 trampoline 中特定的上下文数据以及代码。</p>
+<p>这种机制就是 <strong>vm_remap() + PC 相对寻址</strong>的组合。</p>
+<p>vm_remap() 函数可以在新的地址中映射现有的代码页，并会同时保留页面保护权限（如果映射范围内的内存权限相同，则返回该权限；如果不同，则返回最大限制值）。也就是说，我们可以通过 vm_remap() 函数映射可执行的代码页面，或者可写的数据页面到新的页面地址处。</p>
+<p>那么如何配置 trampoline 的数据呢？答案是通过 PC 相对寻址。PC（程序计数器）寄存器指示当前正在执行的指令的地址。我们将可写的数据页映射到可执行的代码页（trampoline page）旁边，然后使用 PC 相对寻址从相邻的可写数据页面加载 trampoline data，这样就达到了“可写”代码页的目的。</p>
+<p>在本函数中也是这样做的，<strong>先通过 vm_allocate() 分配两页内存（0x8000），然后通过 vm_deallocate 释放第二页，作为 trampoline page，调用 vm_remap() 将 MSCloseTable 映射到已释放的第二页，最后在第一页（可写数据页）中填充需要的数据，返回第二页（可执行代码页）的首地址。</strong></p>
+<p>以下是我仿照着写的伪代码</p>
+<figure class="highlight angelscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">vm_address_t address = <span class="number">0x0</span>;</span><br><span class="line">kern_return_t kt;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Try to allocate two pages */</span></span><br><span class="line">kt = vm_allocate (mach_task_self (), &amp;address, PAGE_SIZE*<span class="number">2</span>, <span class="number">1</span>);</span><br><span class="line"><span class="keyword">if</span> (kt != KERN_SUCCESS) &#123;</span><br><span class="line">   <span class="keyword">return</span> ...;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Now drop the second half of the allocation to make room for the trampoline table */</span></span><br><span class="line">vm_address_t target_address = address+PAGE_SIZE;</span><br><span class="line">kt = vm_deallocate (mach_task_self (), target_address, PAGE_SIZE);</span><br><span class="line"><span class="keyword">if</span> (kt != KERN_SUCCESS) &#123;</span><br><span class="line">   <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Remap the trampoline table to directly follow the address page */</span></span><br><span class="line">vm_prot_t cur_prot;</span><br><span class="line">vm_prot_t max_prot;</span><br><span class="line"></span><br><span class="line">kt = vm_remap (mach_task_self (), &amp;target_address, PAGE_SIZE, <span class="number">0x0</span>, FALSE, mach_task_self (), (vm_address_t) &amp;MSCloseTable, FALSE, &amp;cur_prot, &amp;max_prot, VM_INHERIT_SHARE);</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (kt != KERN_SUCCESS) &#123;</span><br><span class="line">   <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="built_in">int</span>p64_t **x20 = _class;<span class="comment">//&amp;_class+0x8 == &amp;sel</span></span><br><span class="line">*x20 + <span class="number">0x8</span> = sub_5F20</span><br><span class="line">address = x20;</span><br><span class="line">address + <span class="number">0x8</span> = (IMP)MSCloseTarget;</span><br><span class="line">	</span><br><span class="line"><span class="keyword">return</span> target_address;</span><br></pre></td></tr></table></figure>
+
+<p>其中 MSCloseTable 的具体内容为：</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/MSCloseTable.png"></p>
+<p>MSCloseTarget 中只有三条命令，主要是执行加载、跳转的操作。将PC-0x4000 处的值加载到 x16 寄存器中（这里 IDA 自动将相对偏移-0x4000解释为 _MSCloseTarget，实际上我们只需要这个偏移值，执行时偏移值指向的是 address），然后再将[x16]中的值存入x16，[x16+0x8]中的值存入x17，然后跳到x17所指的地址处执行代码。在动态调试中我们会发现这三条命令再加 nop 指令填充了 trampoline page。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/trampoline.png"></p>
+<p>上图中，target_address = 0x105b7c000, address = 0x105b78000，x17 = (IMP)MSCloseTarget，[x16] = &amp;(_class+sel)，[x16]+0x8 = sub_5F20。</p>
+<p>也就是说，trampoline 的作用就是使得程序跳转到 MSCloseTarget 处执行，并把参数 _class，sel 的地址以及 sub_5F20 的地址存入 x16 寄存器、[x16]+0x8中。</p>
+<p>MSCloseTarget 函数的主要作用是调用 sub_5F20 函数，并传入参数 _class 和 sel。</p>
+<p>sub_5F20 函数则是直接调用 class_getMethodImplementation(_class, sel) 函数。</p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/sub_5F20.png"></p>
+<p>总的来说，sub_10000 函数的作用与老版本的一样，都是为了嵌入一段 class_getMethodImplementation(_class, sel) 的 <code>JIT (just in time)</code> 代码，使得程序在运行时才会执行这段代码，而不是在开始的时候就已经传参执行了。</p>
+<h3 id="为什么不使用原来的-if-direct"><a href="#为什么不使用原来的-if-direct" class="headerlink" title="为什么不使用原来的 if (!direct)"></a>为什么不使用原来的 if (!direct)</h3><p>首先 if (!direct) 中的机器码只定义了 ARM 32位、i386、x86_64位，没有定义 ARM64 的嵌入指令。</p>
+<p><del>再者，在 ARM64 中也不能使用这种先 mmap 一段可写的内存，然后将内存改为可执行的权限的方法。</del></p>
+<p><img src="/images/2017-03-23-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/mprotect.png"></p>
+<p>上图来自2014年在 The Black Hat USA 会议中的一篇演讲 “<a target="_blank" rel="noopener" href="https://lifeasageek.github.io/papers/jang:ios-slides.pdf">Exploit unpatched iOS vulnerabilities for fun and profit</a>”。</p>
+<p>比如以下代码：</p>
+<figure class="highlight angelscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">#<span class="keyword">import</span> &lt;sys/mman.h&gt;</span><br><span class="line"></span><br><span class="line">char shell[] = &#123;<span class="number">0x10</span>, <span class="number">0x20</span>, <span class="number">0x70</span>, <span class="number">0x47</span>&#125;; <span class="comment">// return 16;</span></span><br><span class="line"></span><br><span class="line">- (<span class="built_in">void</span>)viewDidLoad &#123;</span><br><span class="line">    <span class="built_in">void</span> *page = mmap(NULL, <span class="number">4096</span>, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, <span class="number">-1</span>, <span class="number">0</span>);</span><br><span class="line">    <span class="keyword">if</span> (page == (<span class="built_in">void</span>*)<span class="number">-1</span>) &#123;</span><br><span class="line">        perror(NULL);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    memcpy(page, shell, sizeof(shell));</span><br><span class="line">    <span class="keyword">typedef</span> <span class="built_in">int</span> (*shell_execute)();</span><br><span class="line">    shell_execute exe = (shell_execute)((<span class="built_in">int</span>)page+<span class="number">1</span>);</span><br><span class="line">    mprotect(page, <span class="number">4096</span>, PROT_READ | PROT_EXEC);</span><br><span class="line">    NSString *<span class="built_in">string</span> = [NSString <span class="built_in">string</span>WithFormat:@<span class="string">&quot;%d&quot;</span>, exe()];</span><br><span class="line">    NSLog(@<span class="string">&quot;%@&quot;</span>, <span class="built_in">string</span>);</span><br><span class="line">    [<span class="keyword">super</span> viewDidLoad];</span><br><span class="line">    <span class="comment">// Do any additional setup after loading the view, typically from a nib.</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在32位的 iOS 系统上，是可以正确运行并打印出16的 <del>但在64位中，则会报错：EXE_BAD_ACCESS (code=257, address=…)</del></p>
+<p>补充：测试后发现，在64位 iOS 越狱系统上也是可以使用 mprotect 修改权限的，至于为什么要使用蹦床页面，我猜测是为了更好的兼容性以及后续扩展。</p>
+<hr>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] Implementing imp_implementationWithBlock()　<a target="_blank" rel="noopener" href="http://landonf.org/2011/04/index.html">http://landonf.org/2011/04/index.html</a><br>[2] pandamonia/libffi-iOS　<a target="_blank" rel="noopener" href="https://github.com/pandamonia/libffi-iOS/blob/master/patches/ios">https://github.com/pandamonia/libffi-iOS/blob/master/patches/ios</a><br>[3] WilliamLCobb/iNDS　<a target="_blank" rel="noopener" href="https://github.com/WilliamLCobb/iNDS/issues/44">https://github.com/WilliamLCobb/iNDS/issues/44</a><br>[4] 谁偷了我的热更新？Mono，JIT，iOS 　<br><a target="_blank" rel="noopener" href="http://www.cnblogs.com/murongxiaopifu/p/4278947.html">http://www.cnblogs.com/murongxiaopifu/p/4278947.html</a></p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">https://harpersu00.github.io/2017-03-23-Hook-原理之-CydiaSubstrate（二）：MSHookMessageEx/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" rel="prev" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">
+      <i class="fa fa-chevron-left"></i> Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" rel="next" title="Objective-C 中的类结构">
+      Objective-C 中的类结构 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E6%83%85%E6%8F%90%E8%A6%81"><span class="nav-number">1.</span> <span class="nav-text">前情提要</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E8%B0%83%E8%AF%95"><span class="nav-number">2.</span> <span class="nav-text">如何调试</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%80%86%E5%90%91%E5%88%86%E6%9E%90"><span class="nav-number">3.</span> <span class="nav-text">逆向分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BC%82%E5%90%8C%E7%82%B9"><span class="nav-number">3.1.</span> <span class="nav-text">异同点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#sub-10000"><span class="nav-number">3.2.</span> <span class="nav-text">sub_10000</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E4%BD%BF%E7%94%A8%E5%8E%9F%E6%9D%A5%E7%9A%84-if-direct"><span class="nav-number">3.3.</span> <span class="nav-text">为什么不使用原来的 if (!direct)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Reference"><span class="nav-number">4.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
+                  &emsp;03-07
+                </time>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

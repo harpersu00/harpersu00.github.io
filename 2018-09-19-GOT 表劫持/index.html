@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="链接在程序从源代码到生成最终的可执行程序，会大体经历编译、汇编、链接三个阶段。编译将源代码转换成为汇编语言（例如.s后缀的文件），汇编阶段将汇编语言转换成机器码（例如.o文件）。链接阶段会合并多个目标文件（上一阶段生成的.o）以及静（动）态链接库中的代码数据等信息，修复文件之间的引用关系，最后生成可执行程序。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GOT 表劫持">
+<meta property="og:url" content="https://harpersu00.github.io/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/index.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="链接在程序从源代码到生成最终的可执行程序，会大体经历编译、汇编、链接三个阶段。编译将源代码转换成为汇编语言（例如.s后缀的文件），汇编阶段将汇编语言转换成机器码（例如.o文件）。链接阶段会合并多个目标文件（上一阶段生成的.o）以及静（动）态链接库中的代码数据等信息，修复文件之间的引用关系，最后生成可执行程序。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2018-09-18T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-14T09:45:01.234Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://harpersu00.github.io/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>GOT 表劫持 | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GOT 表劫持
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2018-09-19 00:00:00" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">2018-09-19</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" itemprop="url" rel="index"><span itemprop="name">基础知识</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="链接"><a href="#链接" class="headerlink" title="链接"></a>链接</h2><p>在程序从源代码到生成最终的可执行程序，会大体经历编译、汇编、链接三个阶段。编译将源代码转换成为汇编语言（例如.s后缀的文件），汇编阶段将汇编语言转换成机器码（例如.o文件）。链接阶段会合并多个目标文件（上一阶段生成的.o）以及静（动）态链接库中的代码数据等信息，修复文件之间的引用关系，最后生成可执行程序。</p>
+<a id="more"></a>
+
+<p>在链接这个过程中，静态链接库的代码和数据会被拷贝一份到可执行程序中。动态链接库则只是包含有引用关系，在程序运行时再通过动态链接加载。</p>
+<p>动态链接库比如Linux中的.so，Windows中的.dll，macOS中的.dylib文件。静态链接库比如.lib、.a文件。</p>
+<h3 id="延迟绑定"><a href="#延迟绑定" class="headerlink" title="延迟绑定"></a>延迟绑定</h3><p>正如由于我们在[链接]部分提到的，采用动态链接库的话，那么在二进制程序中，引用外部库函数的地方，都只是占位符，并不实际指向函数地址。那么在程序启动时，就需要花费大量的时间对函数进行连接，比如模块间函数引用的符号查找、重定位等，这样的做法非常影响程序的性能。而且也并不是程序的每一个分支，都会在运行过程中被使用到。没有运行到的这部分即使没有被链接，也不会有任何影响，反而消耗了程序的性能。</p>
+<p>延迟绑定机制就是针对上述情况的缓解方案，当<strong>外部函数第一次被调用</strong>的时候，才会进行绑定（符号查找，重定位等链接）。如果函数在整个程序运行过程中，都没有被调用，那么它就不会进行绑定。这样的机制在保留动态链接的优势下，还可以加快程序的启动速度。</p>
+<h3 id="GOT表（Global-Offset-Table，全局偏移表）"><a href="#GOT表（Global-Offset-Table，全局偏移表）" class="headerlink" title="GOT表（Global Offset Table，全局偏移表）"></a>GOT表（Global Offset Table，全局偏移表）</h3><p>GOT表位于.got和.got.plt Section</p>
+<ul>
+<li>.got Section 存放<strong>外部全局变量</strong>的GOT表，程序运行开始就会被加载进来，非延迟绑定，例如stdin/stderr等。</li>
+<li>.got.plt Section中存放的是<strong>外部函数</strong>的GOT表，例如printf，使用延迟绑定机制。</li>
+</ul>
+<p>.plt Section （Procedure Linkage Table，程序链接表）对应存放的是.got.plt中所有外部函数对应的plt代码。</p>
+<h2 id="调试"><a href="#调试" class="headerlink" title="调试"></a>调试</h2><p>我们用最简单的代码来认识一下延迟绑定的过程以及GOT表是如何工作的。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="built_in">puts</span>(<span class="string">&quot;hello harpersu00!\n&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用命令 <code>gcc test.c -m32</code> 将上面的示例编译成a.out可执行文件ELF格式。</p>
+<p>然后使用 <code>objdump -s -d a.out</code> 命令查看各个section以及反汇编代码。</p>
+<p>.plt section 如下所示：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">Disassembly of section .plt:</span><br><span class="line"></span><br><span class="line">080482d0 &lt;.plt&gt;:</span><br><span class="line"> 80482d0:	ff 35 04 a0 04 08    	pushl  0x804a004 &#x2F;&#x2F;push link_map</span><br><span class="line"> 80482d6:	ff 25 08 a0 04 08    	jmp    *0x804a008 &#x2F;&#x2F;jump to _dl_runtime_resolve</span><br><span class="line"> 80482dc:	00 00                	add    %al,(%eax)</span><br><span class="line">	...</span><br><span class="line"></span><br><span class="line">080482e0 &lt;puts@plt&gt;:</span><br><span class="line"> 80482e0:	ff 25 0c a0 04 08    	jmp    *0x804a00c &#x2F;&#x2F;值为0x80482e6</span><br><span class="line"> 80482e6:	68 00 00 00 00       	push   $0x0</span><br><span class="line"> 80482eb:	e9 e0 ff ff ff       	jmp    80482d0 &lt;.plt&gt;</span><br><span class="line"></span><br><span class="line">080482f0 &lt;__libc_start_main@plt&gt;:</span><br><span class="line"> 80482f0:	ff 25 10 a0 04 08    	jmp    *0x804a010</span><br><span class="line"> 80482f6:	68 08 00 00 00       	push   $0x8</span><br><span class="line"> 80482fb:	e9 d0 ff ff ff       	jmp    80482d0 &lt;.plt&gt;</span><br></pre></td></tr></table></figure>
+
+<p>.got.plt section :</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Contents of section .got.plt:</span><br><span class="line"> 804a000 149f0408 00000000 00000000 e6820408  ................</span><br><span class="line"> 804a010 f6820408 </span><br></pre></td></tr></table></figure>
+
+<p>我们通过 <code>gdb a.out</code> 命令来调试程序，可以看得更清晰一点。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">(gdb) disassemble main</span><br><span class="line">Dump of assembler code for function main:</span><br><span class="line">   0x0804840d &lt;+0&gt;:	push   %ebp</span><br><span class="line">   0x0804840e &lt;+1&gt;:	mov    %esp,%ebp</span><br><span class="line">   0x08048410 &lt;+3&gt;:	and    $0xfffffff0,%esp</span><br><span class="line">   0x08048413 &lt;+6&gt;:	sub    $0x10,%esp</span><br><span class="line">   0x08048416 &lt;+9&gt;:	movl   $0x80484c4,(%esp)</span><br><span class="line">   0x0804841d &lt;+16&gt;:	call   0x80482e0 &lt;puts@plt&gt;  &#x2F;&#x2F;在这个地址下断点</span><br><span class="line">   0x08048422 &lt;+21&gt;:	leave  </span><br><span class="line">   0x08048423 &lt;+22&gt;:	ret    </span><br><span class="line">End of assembler dump.</span><br><span class="line">(gdb) break *0x804841d  &#x2F;&#x2F;下断点</span><br><span class="line">Breakpoint 1 at 0x804841d</span><br><span class="line">(gdb) display &#x2F;3i $eip  &#x2F;&#x2F;断点处打印$eip之后的3行内容</span><br><span class="line">(gdb) r</span><br><span class="line">Starting program: &#x2F;xxx&#x2F;a.out </span><br><span class="line"></span><br><span class="line">Breakpoint 1, 0x0804841d in main ()</span><br><span class="line">1: x&#x2F;3i $eip</span><br><span class="line">&#x3D;&gt; 0x804841d &lt;main+16&gt;:	call   0x80482e0 &lt;puts@plt&gt;</span><br><span class="line">   0x8048422 &lt;main+21&gt;:	leave  </span><br><span class="line">   0x8048423 &lt;main+22&gt;:	ret    </span><br><span class="line">Missing separate debuginfos, use: debuginfo-install glibc-2.17-307.el7.1.i686</span><br><span class="line">(gdb) si  &#x2F;&#x2F;进入.plt section</span><br><span class="line">0x080482e0 in puts@plt ()</span><br><span class="line">1: x&#x2F;3i $eip</span><br><span class="line">&#x3D;&gt; 0x80482e0 &lt;puts@plt&gt;:	jmp    *0x804a00c</span><br><span class="line">   0x80482e6 &lt;puts@plt+6&gt;:	push   $0x0</span><br><span class="line">   0x80482eb &lt;puts@plt+11&gt;:	jmp    0x80482d0</span><br><span class="line">(gdb) x&#x2F;wx 0x804a00c &#x2F;&#x2F;跳到puts@plt+0x6的位置</span><br><span class="line">0x804a00c:	0x080482e6</span><br><span class="line">(gdb) x&#x2F;4wx 0x804a000 &#x2F;&#x2F;查看.got.plt表的内容, 0x804a00c就是puts函数在got表中的地址</span><br><span class="line">0x804a000:	0x08049f14	0xf7ffd900	0xf7fefea0	0x080482e6</span><br></pre></td></tr></table></figure>
+
+<p>.got.plt表中存放的是每个外部函数的地址，在延迟绑定之前，存放的是该外部函数在.plt表中的地址+0x6；在绑定之后，存放的是该函数的实际地址。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">(gdb) b *0x08048422  &#x2F;&#x2F;在puts函数调用之后下断点</span><br><span class="line">Breakpoint 2 at 0x8048422</span><br><span class="line">(gdb) c</span><br><span class="line">Continuing.</span><br><span class="line">hello harpersu00!</span><br><span class="line"></span><br><span class="line">Breakpoint 2, 0x08048422 in main ()</span><br><span class="line">1: x&#x2F;3i $eip</span><br><span class="line">&#x3D;&gt; 0x8048422 &lt;main+21&gt;:	leave  </span><br><span class="line">   0x8048423 &lt;main+22&gt;:	ret    </span><br><span class="line">   0x8048424:	xchg   %ax,%ax</span><br><span class="line">(gdb) x&#x2F;4wx 0x804a000 &#x2F;&#x2F;.got表中的函数地址改变了，变成了函数的实际地址</span><br><span class="line">0x804a000:	0x08049f14	0xf7ffd900	0xf7fefea0	0xf7e60a40</span><br><span class="line">(gdb) x&#x2F;wx 0x804a00c &#x2F;&#x2F;puts函数在got表中的地址</span><br><span class="line">0x804a00c:	0xf7e60a40</span><br><span class="line">(gdb) p puts &#x2F;&#x2F;puts函数的实际地址</span><br><span class="line">$2 &#x3D; &#123;&lt;text variable, no debug info&gt;&#125; 0xf7e60a40 &lt;puts&gt;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>所以整个过程就是，</p>
+<p>函数第一次被调用处 -&gt; .plt表中(puts@plt) -&gt; 跳转到 .got表中函数偏移处记录的地址，即puts@plt+0x6 -&gt; 跳转到.plt表的首地址，进行符号解析加载 -&gt; 修改.got表中的函数地址为实际地址。</p>
+<p>函数第二次调用 -&gt;  .plt表中(puts@plt) -&gt; 跳转到 .got表中函数偏移处记录的地址，函数的真实地址。</p>
+<p>那么，如果我们修改了.got表中该函数偏移处的地址，就会跳转到我们设定的地址处执行啦，这就是GOT表劫持。</p>
+<h2 id="GOT表劫持实现"><a href="#GOT表劫持实现" class="headerlink" title="GOT表劫持实现"></a>GOT表劫持实现</h2><p>原理： 因为延迟绑定机制会回写GOT表，因此开启延迟绑定，则GOT表是可写的，GOT表所在的内存有w权限。如果漏洞利用可以改写GOT表，那么就可以劫持PC，跳转到自己写的code上取执行。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">win</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="built_in">puts</span>(<span class="string">&quot;You Win!&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> addr, value;</span><br><span class="line">    <span class="built_in">scanf</span>(<span class="string">&quot;%x=%x&quot;</span>, &amp;addr, &amp;value);</span><br><span class="line">    *(<span class="keyword">unsigned</span> <span class="keyword">int</span> *)addr = value;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;set %x=%x\n&quot;</span>, addr, value);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>同样使用 <code>gcc test.c -m32 -o hijack_got</code> 命令编译源文件，得到 hijack_got可执行文件。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">[user@xx]#</span><span class="bash"> objdump -R hijack_got | grep <span class="built_in">printf</span></span></span><br><span class="line">0804a00c R_386_JUMP_SLOT   printf@GLIBC_2.0</span><br><span class="line"><span class="meta">[user@xx]#</span><span class="bash"> objdump -d hijack_got | grep win</span></span><br><span class="line">0804848d &lt;win&gt;:</span><br><span class="line"><span class="meta">[user@xx]#</span><span class="bash"> ./hijack_got </span></span><br><span class="line">0804a00c=0804848d</span><br><span class="line">You Win!</span><br></pre></td></tr></table></figure>
+
+<p>上述示例通过将printf的.got表地址修改为win函数的地址，从而实现GOT表劫持。</p>
+<h2 id="缓解措施"><a href="#缓解措施" class="headerlink" title="缓解措施"></a>缓解措施</h2><p>通过编译选项 gcc -z,relro，可以设置重定位只读。这样在进入main()函数之前，所有的外部函数都会被解析，对于外部函数很多的程序，效率会明显降低。</p>
+<p>绕过Relocation Read Only：</p>
+<ul>
+<li>劫持开启该保护的动态库的GOT表，例如libc</li>
+<li>改写函数指针或返回地址 </li>
+</ul>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">https://harpersu00.github.io/2018-09-19-GOT 表劫持/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" rel="prev" title="（译）Handling low memory conditions in iOS and Mavericks">
+      <i class="fa fa-chevron-left"></i> （译）Handling low memory conditions in iOS and Mavericks
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%93%BE%E6%8E%A5"><span class="nav-number">1.</span> <span class="nav-text">链接</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BB%B6%E8%BF%9F%E7%BB%91%E5%AE%9A"><span class="nav-number">1.1.</span> <span class="nav-text">延迟绑定</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#GOT%E8%A1%A8%EF%BC%88Global-Offset-Table%EF%BC%8C%E5%85%A8%E5%B1%80%E5%81%8F%E7%A7%BB%E8%A1%A8%EF%BC%89"><span class="nav-number">1.2.</span> <span class="nav-text">GOT表（Global Offset Table，全局偏移表）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B0%83%E8%AF%95"><span class="nav-number">2.</span> <span class="nav-text">调试</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#GOT%E8%A1%A8%E5%8A%AB%E6%8C%81%E5%AE%9E%E7%8E%B0"><span class="nav-number">3.</span> <span class="nav-text">GOT表劫持实现</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BC%93%E8%A7%A3%E6%8E%AA%E6%96%BD"><span class="nav-number">4.</span> <span class="nav-text">缓解措施</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
+                  &emsp;03-07
+                </time>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

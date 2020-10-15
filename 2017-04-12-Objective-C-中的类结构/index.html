@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="引子我们已知，OC 中的类也是对象，且对象和类实际上是以结构体的形式存在的（可通过 clang 转换）。在 OC 运行时可以修改对象的方法和属性。那么，这些结论背后的机理是什么呢？ 在这篇文章中，我将从类的内存布局以及内存结构方面入手，通过调试 objc runtime 的源代码来厘清上述问题（源代码版本为 objc4-706）。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Objective-C 中的类结构">
+<meta property="og:url" content="https://harpersu00.github.io/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/index.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="引子我们已知，OC 中的类也是对象，且对象和类实际上是以结构体的形式存在的（可通过 clang 转换）。在 OC 运行时可以修改对象的方法和属性。那么，这些结论背后的机理是什么呢？ 在这篇文章中，我将从类的内存布局以及内存结构方面入手，通过调试 objc runtime 的源代码来厘清上述问题（源代码版本为 objc4-706）。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE1.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE2.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE3.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE4.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE5.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE6.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE7.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE8.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE9.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE10.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE11.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE12.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE13.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE14.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE15.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE16.png">
+<meta property="article:published_time" content="2017-04-11T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-13T10:07:58.479Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://harpersu00.github.io/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE1.png">
+
+<link rel="canonical" href="https://harpersu00.github.io/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Objective-C 中的类结构 | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Objective-C 中的类结构
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2017-04-12 00:00:00" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">2017-04-12</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80%E8%AF%AD%E6%B3%95/" itemprop="url" rel="index"><span itemprop="name">编程语言语法</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="引子"><a href="#引子" class="headerlink" title="引子"></a>引子</h2><p>我们已知，OC 中的类也是对象，且对象和类实际上是以结构体的形式存在的（可通过 clang 转换）。在 OC 运行时可以修改对象的方法和属性。那么，这些结论背后的机理是什么呢？</p>
+<p>在这篇文章中，我将从类的内存布局以及内存结构方面入手，通过调试 objc runtime 的源代码来厘清上述问题（源代码版本为 objc4-706）。</p>
+<a id="more"></a>
+
+<h2 id="isa-t-结构体"><a href="#isa-t-结构体" class="headerlink" title="isa_t 结构体"></a>isa_t 结构体</h2><p>首先来认识一下 isa 指针，isa 的意思是 it is a object，这是一个对象。对象是由 objc_object 结构体定义的，类是由 objc_calss 结构体定义的，我们可以在 runtime 源码中查看它们的定义：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">objc_object</span> &#123;</span></span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    <span class="keyword">isa_t</span> isa;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">objc_class</span> :</span> objc_object &#123;</span><br><span class="line">    <span class="comment">// Class ISA;</span></span><br><span class="line">    Class superclass;　　　　<span class="comment">// 父类</span></span><br><span class="line">    <span class="keyword">cache_t</span> cache;　　　　　　<span class="comment">// formerly cache pointer and vtable</span></span><br><span class="line">    <span class="keyword">class_data_bits_t</span> bits; <span class="comment">// class_rw_t * plus custom rr/alloc flags</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="isa-定义"><a href="#isa-定义" class="headerlink" title="isa 定义"></a>isa 定义</h3><p>我们可以看到，对象的结构体中其实就只包含了一个 isa_t 联合类型的成员，类的结构体继承于对象的结构体，因此类的结构体的第一个成员也是 isa_t 联合类型，从这一点来讲，类也是对象。</p>
+<figure class="highlight angelscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><span class="line">union isa_t </span><br><span class="line">&#123;</span><br><span class="line">    isa_t() &#123; &#125;</span><br><span class="line">    isa_t(<span class="built_in">uint</span>ptr_t value) : bits(value) &#123; &#125;</span><br><span class="line"></span><br><span class="line">    Class cls;</span><br><span class="line">    <span class="built_in">uint</span>ptr_t bits;</span><br><span class="line"></span><br><span class="line">#<span class="keyword">if</span> SUPPORT_PACKED_ISA</span><br><span class="line"></span><br><span class="line">    <span class="comment">// extra_rc must be the MSB-most field (so it matches carry/overflow flags)</span></span><br><span class="line">    <span class="comment">// nonpointer must be the LSB (fixme or get rid of it)</span></span><br><span class="line">    <span class="comment">// shiftcls must occupy the same bits that a real class pointer would</span></span><br><span class="line">    <span class="comment">// bits + RC_ONE is equivalent to extra_rc + 1</span></span><br><span class="line">    <span class="comment">// RC_HALF is the high bit of extra_rc (i.e. half of its range)</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// future expansion:</span></span><br><span class="line">    <span class="comment">// uintptr_t fast_rr : 1;     // no r/r overrides</span></span><br><span class="line">    <span class="comment">// uintptr_t lock : 2;        // lock for atomic property, @synch</span></span><br><span class="line">    <span class="comment">// uintptr_t extraBytes : 1;  // allocated with extra bytes</span></span><br><span class="line"></span><br><span class="line"># <span class="keyword">if</span> __arm64__</span><br><span class="line">#   define ISA_MASK        <span class="number">0x0000000ffffffff8</span>ULL</span><br><span class="line">#   define ISA_MAGIC_MASK  <span class="number">0x000003f000000001</span>ULL</span><br><span class="line">#   define ISA_MAGIC_VALUE <span class="number">0x000001a000000001</span>ULL</span><br><span class="line">    struct &#123;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t nonpointer        : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t has_assoc         : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t has_cxx_dtor      : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t shiftcls          : <span class="number">33</span>; <span class="comment">// MACH_VM_MAX_ADDRESS 0x1000000000</span></span><br><span class="line">        <span class="built_in">uint</span>ptr_t magic             : <span class="number">6</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t weakly_referenced : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t deallocating      : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t has_sidetable_rc  : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t extra_rc          : <span class="number">19</span>;</span><br><span class="line">#       define RC_ONE   (<span class="number">1</span>ULL&lt;&lt;<span class="number">45</span>)</span><br><span class="line">#       define RC_HALF  (<span class="number">1</span>ULL&lt;&lt;<span class="number">18</span>)</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line"># elif __x86_64__</span><br><span class="line">#   define ISA_MASK        <span class="number">0x00007ffffffffff8</span>ULL</span><br><span class="line">#   define ISA_MAGIC_MASK  <span class="number">0x001f800000000001</span>ULL</span><br><span class="line">#   define ISA_MAGIC_VALUE <span class="number">0x001d800000000001</span>ULL</span><br><span class="line">    struct &#123;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t nonpointer        : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t has_assoc         : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t has_cxx_dtor      : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t shiftcls          : <span class="number">44</span>; <span class="comment">// MACH_VM_MAX_ADDRESS 0x7fffffe00000</span></span><br><span class="line">        <span class="built_in">uint</span>ptr_t magic             : <span class="number">6</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t weakly_referenced : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t deallocating      : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t has_sidetable_rc  : <span class="number">1</span>;</span><br><span class="line">        <span class="built_in">uint</span>ptr_t extra_rc          : <span class="number">8</span>;</span><br><span class="line">#       define RC_ONE   (<span class="number">1</span>ULL&lt;&lt;<span class="number">56</span>)</span><br><span class="line">#       define RC_HALF  (<span class="number">1</span>ULL&lt;&lt;<span class="number">7</span>)</span><br><span class="line">    &#125;;</span><br><span class="line"> ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>关于联合类型，联合表示几个变量公用一个内存位置，在不同的时间保存不同的变量。当一个联合被说明时，编译程序自动地产生一个变量，其长度为联合中最大的变量长度。也就是说没，在任何同一时刻，联合只存放了一个被选中的成员。在 isa_t 联合结构中，共有三个成员，cls，bits，以及结构体变量。</p>
+<h3 id="isa-初始化"><a href="#isa-初始化" class="headerlink" title="isa 初始化"></a>isa 初始化</h3><p>我们从 isa 的初始化来看 isa_t 联合中结构体各字段的意义。当为 OC 对象分配内存时（比如调用 alloc 方法），会初始化 isa 指针，其方法调用栈如下图所示：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE1.png"></p>
+<p>其中 <code>inline void objc_object::initIsa(Class cls, bool nonpointer, bool hasCxxDtor)</code> 方法的定义如下：</p>
+<figure class="highlight haxe"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">inline</span> void </span><br><span class="line">objc_object:<span class="type"></span>:initIsa(Class cls, bool nonpointer, bool hasCxxDtor) </span><br><span class="line">&#123; </span><br><span class="line">    assert(!isTaggedPointer()); </span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (!nonpointer) &#123;</span><br><span class="line">        isa.cls = cls;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        assert(!DisableNonpointerIsa);</span><br><span class="line">        assert(!cls-&gt;instancesRequireRawIsa());</span><br><span class="line"></span><br><span class="line">        isa_t <span class="keyword">new</span><span class="type">isa</span>(<span class="number">0</span>);</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> SUPPORT_INDEXED_ISA</span></span><br><span class="line">        assert(cls-&gt;classArrayIndex() &gt; <span class="number">0</span>);</span><br><span class="line">        <span class="keyword">new</span><span class="type">isa</span>.bits = ISA_INDEX_MAGIC_VALUE;</span><br><span class="line">        <span class="comment">// isa.magic is part of ISA_MAGIC_VALUE</span></span><br><span class="line">        <span class="comment">// isa.nonpointer is part of ISA_MAGIC_VALUE</span></span><br><span class="line">        <span class="keyword">new</span><span class="type">isa</span>.has_cxx_dtor = hasCxxDtor;</span><br><span class="line">        <span class="keyword">new</span><span class="type">isa</span>.indexcls = (uintptr_t)cls-&gt;classArrayIndex();</span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line">        <span class="keyword">new</span><span class="type">isa</span>.bits = ISA_MAGIC_VALUE;</span><br><span class="line">        <span class="comment">// isa.magic is part of ISA_MAGIC_VALUE</span></span><br><span class="line">        <span class="comment">// isa.nonpointer is part of ISA_MAGIC_VALUE</span></span><br><span class="line">        <span class="keyword">new</span><span class="type">isa</span>.has_cxx_dtor = hasCxxDtor;</span><br><span class="line">        <span class="keyword">new</span><span class="type">isa</span>.shiftcls = (uintptr_t)cls &gt;&gt; <span class="number">3</span>;</span><br><span class="line"><span class="meta">#endif</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// This write must be performed in a single store in some cases</span></span><br><span class="line">        <span class="comment">// (for example when realizing a class because other threads</span></span><br><span class="line">        <span class="comment">// may simultaneously try to use the class).</span></span><br><span class="line">        <span class="comment">// fixme use atomics here to guarantee single-store and to</span></span><br><span class="line">        <span class="comment">// guarantee memory order w.r.t. the class index table</span></span><br><span class="line">        <span class="comment">// ...but not too atomic because we don&#x27;t want to hurt instantiation</span></span><br><span class="line">        isa = <span class="keyword">new</span><span class="type">isa</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>以 x86_64 架构为例，ISA_MAGIC_VALUE 为 0x001d800000000001，在执行 <code>newisa.bits = ISA_MAGIC_VALUE;</code> 这行代码之后，newisa 的结构如下图：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE2.png"></p>
+<p>正如注释中提到的，执行这行代码，给 magic 和 nonpointer 赋值，nonpointer 是第0位，为1，magic 是第47<del>52位，为111011。接下来再将传入的 hasCxxDtor 赋值给 newisa.has_cxx_dtor，cls右3位赋值给 newisa.shiftcls。因为 shiftcls 是类或元类的指针，所以肯定是对齐的，也就是以0或8结尾，所以第0</del>2位在 isa 指针中就被占用来记录其他信息了（nonpointer、has_assoc、has_cxx_dtor ）。</p>
+<blockquote>
+<p>isa 各字段的含义：</p>
+<ul>
+<li>nonpointer：表示isa_t 的类型，0表示这是一个指向 cls 的指针（iPhone 64位之前的 isa 类型），1表示当前的 isa 并不是普通意义上的指针，而是 isa_t 联合类型，其中包含有 cls 的信息，在 shiftcls 字段中。</li>
+<li>has_assoc：对象含有或曾经含有关联引用，没有关联引用可以更快释放内存。</li>
+<li>has_cxx_dtor：表示该对象是否有 C++ 或 ARC 的析构函数，如果没有析构器就会快速释放内存。</li>
+<li>shiftcls：当前对象对应的类指针，或当前类对应的元类指针。</li>
+<li>magic：0x3b，用于调试器判断当前对象为真的对象还是未初始化的空间。 （即判断是否完成初始化）</li>
+<li>weakly_referenced：对象是否指向或曾经指向一个 ARC 的弱变量，没有弱引用的对象可以更快释放。</li>
+<li>deallocating：对象正在释放内存。</li>
+<li>has_sidetable_rc：该对象引用计数太大，isa 指针存不下了。</li>
+<li>extra_rc： 存储引用计数值减一后的值。</li>
+</ul>
+</blockquote>
+<h3 id="isa-gt-shiftcls"><a href="#isa-gt-shiftcls" class="headerlink" title="isa-&gt;shiftcls"></a>isa-&gt;shiftcls</h3><p>通过前面提到的 objc_object 的定义，我们可以看到，对象的结构体中仅仅只有一个 isa 指针，并没有保存对象的属性、方法等。因为如果每一个对象都保存了自己能执行的方法，那么会占用很多的内存。</p>
+<p>当实例方法（减号方法）被调用时，是通过对象的 isa 指针来查找对应的类（shiftcls 字段），然后在 objc_class 的 class_data_bits_t 结构体中查找本类方法的实现，superclass 中查找父类方法。</p>
+<p>调用实例方法，也就是向对象发送消息。那么调用类方法（加号方法），也是在向类发送消息。正如我们前面提到的，类也是一个对象，类对象的类是它的元类（meta class）。所以类方法存储在元类结构中。</p>
+<p>元类当然也是一个对象（为 objc_class 结构），它所属的类是根类（NSObject）的元类，根元类的类就是它自己。总的来说，<strong>对象的 isa-&gt;shiftcls 指向其所属类，类的 isa-&gt;shiftcls 指向元类，元类的 isa-&gt;shiftcls 指向根元类，根元类指向它自己。</strong></p>
+<p>可以通过 ISA() 来获取 isa-&gt;shiftcls：</p>
+<figure class="highlight monkey"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">inline</span> <span class="class"><span class="keyword">Class</span> </span></span><br><span class="line">objc_object::ISA() </span><br><span class="line">&#123;</span><br><span class="line">    assert(!isTaggedPointer()); </span><br><span class="line">    <span class="keyword">return</span> (<span class="class"><span class="keyword">Class</span>)(<span class="title">isa</span>.<span class="title">bits</span> &amp; <span class="title">ISA_MASK</span>);</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>即通过 <code>ISA_MASK</code> 掩码获取。</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE3.png"></p>
+<p>在上图中（x86_64），<code>x1</code>是一个对象，<code>$1</code>是x1的 isa-&gt;shiftcls 指向的类，<code>$2</code>是$1的 isa-&gt;shiftcls 指向的元类，<code>$3</code>是$2的 isa-&gt;shiftcls 指向的根元类。</p>
+<h2 id="class-data-bits-t-结构体"><a href="#class-data-bits-t-结构体" class="headerlink" title="class_data_bits_t 结构体"></a>class_data_bits_t 结构体</h2><blockquote>
+<p>Class superclass 是当前类的父类指针，cache_t cache 在我之前的一篇文章“<a target="_blank" rel="noopener" href="https://amywushu.github.io/2016/11/09/%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend.html">通过汇编解读 objc_msgSend</a>”中有详细讲解。</p>
+</blockquote>
+<p><code>class_data_bits_t</code> 结构体只包含有一个 uintptr_t 类型的 bits。另外我们可以通过它的 data() 方法，访问64位中的第3~47位，返回一个 <code>class_rw_t*</code> 指针。objc_class 中的 data() 方法仅仅是对它做了一个封装。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">class_data_bits_t</span> &#123;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// Values are the FAST_ flags above.</span></span><br><span class="line">    <span class="keyword">uintptr_t</span> bits;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    ...</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    ...</span><br><span class="line">    <span class="function"><span class="keyword">class_rw_t</span>* <span class="title">data</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> (<span class="keyword">class_rw_t</span> *)(bits &amp; FAST_DATA_MASK);</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">objc_class</span> :</span> objc_object &#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">class_data_bits_t</span> bits; <span class="comment">// class_rw_t * plus custom rr/alloc flags</span></span><br><span class="line">    ...</span><br><span class="line">    <span class="function"><span class="keyword">class_rw_t</span> *<span class="title">data</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> bits.data();</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 objc_class 的注释中提到，class_data_bits_t 结构体就是 class_rw_t 指针加上 rr/alloc 标志。</p>
+<h3 id="class-rw-t-amp-class-ro-t"><a href="#class-rw-t-amp-class-ro-t" class="headerlink" title="class_rw_t &amp; class_ro_t"></a>class_rw_t &amp; class_ro_t</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">class_rw_t</span> &#123;</span></span><br><span class="line">    <span class="comment">// Be warned that Symbolication knows the layout of this structure.</span></span><br><span class="line">    <span class="keyword">uint32_t</span> flags;</span><br><span class="line">    <span class="keyword">uint32_t</span> version;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">class_ro_t</span> *ro;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">method_array_t</span> methods;</span><br><span class="line">    <span class="keyword">property_array_t</span> properties;</span><br><span class="line">    <span class="keyword">protocol_array_t</span> protocols;</span><br><span class="line"></span><br><span class="line">    Class firstSubclass;</span><br><span class="line">    Class nextSiblingClass;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">char</span> *demangledName;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> SUPPORT_INDEXED_ISA</span></span><br><span class="line">    <span class="keyword">uint32_t</span> index;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>很明显可以看到，类中的方法、属性、协议等都保存在 class_rw_t 结构体中。其中的 <strong>class_ro_t 结构体保存的是当前类在编译期间就已经确定的属性、方法以及遵循的协议。</strong></p>
+<p>编译期间：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE4.png"></p>
+<p>运行后：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE5.png"></p>
+<blockquote>
+<p>以上两张图来自 Draveness 的博客：<a target="_blank" rel="noopener" href="http://draveness.me/method-struct.html">深入解析 ObjC 中方法的结构</a></p>
+</blockquote>
+<p>这个变化来自于，在对类进行初始化的 realezeClass 方法：</p>
+<figure class="highlight haskell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="title">static</span> <span class="type">Class</span> realizeClass(<span class="type">Class</span> cls)</span><br><span class="line">&#123;</span><br><span class="line">   ...</span><br><span class="line">    ro = (const class_ro_t *)cls-&gt;<span class="class"><span class="keyword">data</span>();</span></span><br><span class="line">    <span class="keyword">if</span> (ro-&gt;flags &amp; <span class="type">RO_FUTURE</span>) &#123;</span><br><span class="line">        // <span class="type">This</span> was a future <span class="keyword">class</span>. rw <span class="class"><span class="keyword">data</span> is already allocated.</span></span><br><span class="line">        rw = cls-&gt;<span class="class"><span class="keyword">data</span>();</span></span><br><span class="line">        ro = cls-&gt;<span class="class"><span class="keyword">data</span>()-&gt;ro;</span></span><br><span class="line">        cls-&gt;changeInfo(<span class="type">RW_REALIZED</span>|<span class="type">RW_REALIZING</span>, <span class="type">RW_FUTURE</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        // <span class="type">Normal</span> <span class="keyword">class</span>. <span class="type">Allocate</span> writeable <span class="keyword">class</span> <span class="class"><span class="keyword">data</span>.</span></span><br><span class="line">        rw = (class_rw_t *)calloc(sizeof(class_rw_t), <span class="number">1</span>);</span><br><span class="line">        rw-&gt;ro = ro;</span><br><span class="line">        rw-&gt;flags = <span class="type">RW_REALIZED</span>|<span class="type">RW_REALIZING</span>;</span><br><span class="line">        cls-&gt;setData(rw);</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">	methodizeClass(cls);</span><br><span class="line"></span><br><span class="line">	return cls;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>methodizeClass</code> 方法将类自己实现的方法、属性和协议加载到 class_rw_t 的 methods、properties 和 protocols 中。</p>
+<p>我们新建一个类：</p>
+<figure class="highlight objectivec"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//  XXObject.h</span></span><br><span class="line"><span class="meta">#import <span class="meta-string">&lt;Foundation/Foundation.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">@protocol</span> <span class="title">XXObjectProtocol</span> &lt;<span class="title">NSObject</span>&gt;</span></span><br><span class="line"></span><br><span class="line">- (<span class="keyword">void</span>)hello;</span><br><span class="line"></span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">XXObject</span> : <span class="title">NSObject</span> &lt;<span class="title">XXObjectProtocol</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>, <span class="keyword">readwrite</span>) <span class="built_in">NSString</span> *myproperty;</span><br><span class="line"></span><br><span class="line">- (<span class="keyword">void</span>)hello;</span><br><span class="line"></span><br><span class="line">+ (<span class="keyword">void</span>)myClassMethod;</span><br><span class="line"></span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">//  XXObject.m</span></span><br><span class="line"><span class="meta">#import <span class="meta-string">&quot;XXObject.h&quot;</span></span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">@implementation</span> <span class="title">XXObject</span></span></span><br><span class="line"></span><br><span class="line">- (<span class="keyword">void</span>)hello &#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@&quot;Hello&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">+ (<span class="keyword">void</span>)myClassMethod &#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@&quot;myClassMethod&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">//  main.m</span></span><br><span class="line"><span class="meta">#import <span class="meta-string">&lt;Foundation/Foundation.h&gt;</span></span></span><br><span class="line"><span class="meta">#import <span class="meta-string">&lt;objc/runtime.h&gt;</span></span></span><br><span class="line"><span class="meta">#import <span class="meta-string">&quot;XXObject.h&quot;</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        <span class="comment">// insert code here...  </span></span><br><span class="line">        Class cls = [XXObject <span class="keyword">class</span>];</span><br><span class="line">        XXObject *x1 = [[XXObject alloc] init];</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@&quot;%p&quot;</span>, cls); </span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>XXObject 这个类遵循 XXObjectProtocol 协议，并实现了其中的 hello 方法。定义并实现了类方法 myClassMethod。在 main 函数中初始化这个类的实例，然后运行一次，获取 XXObject 在内存中的地址。我的是<code>0x1000015d8</code>。再在 realizeClass 方法内， rw 还未赋值之前下条件断点，如下图：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE6.png"></p>
+<p>然后运行：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE7.png"></p>
+<p>可以看到在断点处打印 bits.data() 返回的是 class_rw_t * 指针，继续打印 class_rw_t 结构体的值，并不对，因为在 realizeClass 方法中的 rw 被赋值前，应该是 class_ro_t 结构体类型，如下图：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE8.png"></p>
+<p>接着可以打印 ro 结构体内的方法列表，即编译期间确定的该对象的方法，存储在只读区域，有遵循协议实现的 hello 方法，还有 .cxx_destruct 这个编译器自动生成的方法（用来在 ARC 下释放对象的实例变量），以及属性 myproperty 的 setter、getter 方法。如下图：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE9.png"></p>
+<p>打印 ro 结构体内的属性列表，如下图：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE10.png"></p>
+<p>打印协议，protocol_list_t 没有 get 方法，它的结构是这样的：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">protocol_list_t</span> &#123;</span></span><br><span class="line">    <span class="comment">// count is 64-bit by accident. </span></span><br><span class="line">    <span class="keyword">uintptr_t</span> count;</span><br><span class="line">    <span class="keyword">protocol_ref_t</span> <span class="built_in">list</span>[<span class="number">0</span>]; <span class="comment">// variable-size</span></span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>所以第一个64位表示该对象遵循的协议的数量，紧接着是协议列表，如下图：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE11.png"></p>
+<p>在运行完对 rw 的赋值之后，再查看 class_data_bits_t * 指针，其指向的内存地址已经改变，从之前的 class_ro_t * 指针 <code>0x100001538</code> 变为真正的 class_rw_t * 指针的地址 <code>0x100802d20</code>。打印发现 class_rw_t 结构体中的 ro 已被设置为 class_ro_t * 指针的地址。如下图：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE12.png"></p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE13.png"></p>
+<p>methods、properties等仍为0，在 realizeClass 方法末尾处的 methodizeClass 方法执行完，才会被赋值，且与 ro 中的方法列表等指针地址相同。</p>
+<h3 id="动态添加方法"><a href="#动态添加方法" class="headerlink" title="动态添加方法"></a>动态添加方法</h3><p>如果动态添加方法的话，又会被存在什么位置呢？我们将 main 函数修改为下面的代码：</p>
+<figure class="highlight reasonml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">int</span> main(<span class="built_in">int</span> argc, const <span class="built_in">char</span><span class="operator"> * </span>argv<span class="literal">[]</span>) &#123;</span><br><span class="line">    @autoreleasepool &#123; </span><br><span class="line">        Class cls = <span class="literal">[XXO<span class="identifier">bject</span> <span class="identifier">class</span>]</span>;</span><br><span class="line">        XXObject *x1 = <span class="literal">[[XXO<span class="identifier">bject</span> <span class="identifier">alloc</span>]</span> init];</span><br><span class="line">        <span class="constructor">NSLog(@<span class="string">&quot;%p&quot;</span>, <span class="params">cls</span>)</span>;</span><br><span class="line">        </span><br><span class="line">        SEL come = sel<span class="constructor">_registerName(<span class="string">&quot;come&quot;</span>)</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">class</span><span class="constructor">_addMethod(<span class="params">cls</span>, <span class="params">come</span>, <span class="params">class_getMethodImplementation</span>(<span class="params">cls</span>, @<span class="params">selector</span>(<span class="params">hello</span>)</span>), <span class="keyword">method</span><span class="constructor">_getTypeEncoding(<span class="params">class_getInstanceMethod</span>(<span class="params">cls</span>, @<span class="params">selector</span>(<span class="params">hello</span>)</span>)));</span><br><span class="line">        </span><br><span class="line">        <span class="literal">[<span class="identifier">x1</span> <span class="identifier">performSelector</span>:<span class="identifier">come</span>]</span>;</span><br><span class="line">    </span><br><span class="line">    &#125;</span><br><span class="line">    return <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>[x1 performSelector:come];</code> 处下断点：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE14.png"></p>
+<p>打印 class_rw_t * 指针的地址，可以看到 methods 的指针为 <code>0x100802051</code>，地址末尾为1，标明这是 thumb 架构，打印的时候减1即可。通过 <code>$3</code> 可以看见，直接强制转换为 method_list_t * 指针，并不能打印处方法的地址。我们打印 <code>0x100802050</code> 处的内存，可以看到首先是 <code>0x2</code>，这是标明当前方法列表的数目，<code>0x100802030</code> 即是动态增加的方法列表的指针，<code>0x100002478</code> 是 ro.baseMethodList 的指针：</p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE15.png"></p>
+<p><img src="/images/2017-04-12-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/%E5%9B%BE16.png"></p>
+<p>所以，<strong>动态添加的方法只修该 rw 中 methods 的内存布局</strong>，对编译期间就确定的 ro 中的 baseMethodList 没有影响。 <strong>ro 的结构是在编译期确定的，在运行期间不可更改</strong>。</p>
+<hr>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] 深入解析 ObjC 中方法的结构　<a target="_blank" rel="noopener" href="http://draveness.me/method-struct.html">http://draveness.me/method-struct.html</a><br>[2] 从 NSObject 的初始化了解 isa　<a target="_blank" rel="noopener" href="http://draveness.me/isa.html">http://draveness.me/isa.html</a><br>[3] 用 isa 承载对象的类信息　<a target="_blank" rel="noopener" href="http://www.desgard.com/isa/">http://www.desgard.com/isa/</a><br>[4] 我们的对象会经历什么　<a target="_blank" rel="noopener" href="http://www.jianshu.com/p/ff8a7c458c96">http://www.jianshu.com/p/ff8a7c458c96</a></p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">https://harpersu00.github.io/2017-04-12-Objective-C-中的类结构/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" rel="prev" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">
+      <i class="fa fa-chevron-left"></i> Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" rel="next" title="（译）Handling low memory conditions in iOS and Mavericks">
+      （译）Handling low memory conditions in iOS and Mavericks <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%95%E5%AD%90"><span class="nav-number">1.</span> <span class="nav-text">引子</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#isa-t-%E7%BB%93%E6%9E%84%E4%BD%93"><span class="nav-number">2.</span> <span class="nav-text">isa_t 结构体</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#isa-%E5%AE%9A%E4%B9%89"><span class="nav-number">2.1.</span> <span class="nav-text">isa 定义</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#isa-%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">2.2.</span> <span class="nav-text">isa 初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#isa-gt-shiftcls"><span class="nav-number">2.3.</span> <span class="nav-text">isa-&gt;shiftcls</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#class-data-bits-t-%E7%BB%93%E6%9E%84%E4%BD%93"><span class="nav-number">3.</span> <span class="nav-text">class_data_bits_t 结构体</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#class-rw-t-amp-class-ro-t"><span class="nav-number">3.1.</span> <span class="nav-text">class_rw_t &amp; class_ro_t</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8A%A8%E6%80%81%E6%B7%BB%E5%8A%A0%E6%96%B9%E6%B3%95"><span class="nav-number">3.2.</span> <span class="nav-text">动态添加方法</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Reference"><span class="nav-number">4.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
+                  &emsp;03-07
+                </time>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

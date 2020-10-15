@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前情提要CydiaSubstrate，作者为 Jay Freeman(saurik)，在iOS7越狱之前名为 MobileSubstrate，因此 CydiaSubstrate 框架中的大部分函数仍以 MS 为前缀。  在用 theos 开发中，control 文件中的 depend 字段依赖库为 mobilesubstrate，该工具是实现 CydiaSubstrate 注入的关键所在，整个工具">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">
+<meta property="og:url" content="https://harpersu00.github.io/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/index.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="前情提要CydiaSubstrate，作者为 Jay Freeman(saurik)，在iOS7越狱之前名为 MobileSubstrate，因此 CydiaSubstrate 框架中的大部分函数仍以 MS 为前缀。  在用 theos 开发中，control 文件中的 depend 字段依赖库为 mobilesubstrate，该工具是实现 CydiaSubstrate 注入的关键所在，整个工具">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/%E6%9C%BA%E5%99%A8%E7%A0%81%E6%A0%BC%E5%BC%8F.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/stmdb.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/register_list.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/%E6%9C%BA%E5%99%A8%E7%A0%81%E5%AF%B9%E6%AF%94.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/%E6%B1%87%E7%BC%96.png">
+<meta property="article:published_time" content="2017-03-06T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-13T10:21:05.984Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://harpersu00.github.io/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/%E6%9C%BA%E5%99%A8%E7%A0%81%E6%A0%BC%E5%BC%8F.png">
+
+<link rel="canonical" href="https://harpersu00.github.io/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2017-03-07 00:00:00" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">2017-03-07</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">源码解析</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="前情提要"><a href="#前情提要" class="headerlink" title="前情提要"></a>前情提要</h2><p>CydiaSubstrate，作者为 Jay Freeman(saurik)，在iOS7越狱之前名为 MobileSubstrate，因此 CydiaSubstrate 框架中的大部分函数仍以 <code>MS</code> 为前缀。</p>
+<blockquote>
+<p>在用 theos 开发中，control 文件中的 depend 字段依赖库为 mobilesubstrate，该工具是实现 CydiaSubstrate 注入的关键所在，整个工具主要分为 MobileHooker、MobileLoader 以及 Safe mode 三部分。</p>
+<p>MobileHooker，是 CydiaSubstrate 的一个组件，对 C 和 Objective-C 均有效。</p>
+<p>MobileHooker 组件主要提供了 MSHookMessageEx 和 MSHookFunction 两个函数针对不同语言的 inline hook 功能，其中 MSHookMessageEx 负责用来 hook Objective-C 函数，MSHookFunction 负责用来 hook C/C++ 函数。<br>　　　　　　　　　　　　                                                               ————简书作者：HWenj《<a target="_blank" rel="noopener" href="http://www.jianshu.com/p/3479f9632a6f">iOS HOOK</a>》</p>
+</blockquote>
+<a id="more"></a>
+
+<h2 id="源码编译"><a href="#源码编译" class="headerlink" title="源码编译"></a>源码编译</h2><p>CydiaSubstrate 源代码现在已经不开源了，我调试用的代码是 iOS5 的时候的版本，<a target="_blank" rel="noopener" href="https://github.com/r-plus/substrate">GitHub</a>。虽然已经过时很久，仅支持32位的移动端，以及32/64位的 PC 端，但其中还是有很多东西值得学习。</p>
+<p>正如前文所说，MSHookMessageEx 是针对 OC 函数的 hook，因此它也是采用的 Method Swizzling 方法（详见我之前的文章 <a target="_blank" rel="noopener" href="https://amywushu.github.io/2017/03/01/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-Method-Swizzling.html#">Hook 原理之 Method Swizzling</a>），下面我们来分析一下老版本中的源代码。核心代码在 C++ 文件 <code>ObjectiveC.cpp</code> 中。</p>
+<ol>
+<li>首先需要在你的工程中引入以下几个文件：ARM.hpp、x86.hpp、CydiaSubstrate.h、Debug.hpp、Debug.cpp 以及 Log.hpp，后面三个文件可以不导入，修改几处 Log 的代码即可。</li>
+<li>然后在工程中添加一对新的 C++ 文件（即实现文件和头文件），我的命名为 MyMSHookMessageEx。</li>
+<li>然后将 ObjectiveC.cpp 中的内容，包括引入的头文件，<code>static Method MSFindMethod(Class _class, SEL sel)</code> 函数，<code>static void MSHookMessageInternal(...)</code> 函数和 <code>_extern void MSHookMessageEx(...)</code> 函数拷贝到 MyMSHookMessageEx.cpp 中。</li>
+<li>新建 Cocoa Touch Class，我的命名为 <code>MySwizzling</code>。在头文件中添加函数声明 <code>- (void)exchange;</code>。</li>
+<li>在实现文件 MySwizzling.m 中添加以下代码：</li>
+</ol>
+<figure class="highlight objectivec"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#import <span class="meta-string">&quot;MySwizzling.h&quot;</span></span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">@implementation</span> <span class="title">MySwizzling</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span> *(*oldConnect)(<span class="keyword">id</span> <span class="keyword">self</span>, SEL _cmd);</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span> *newConnect(<span class="keyword">id</span> <span class="keyword">self</span>, SEL _cmd) &#123;</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@&quot;new connect&quot;</span>);  </span><br><span class="line">    <span class="keyword">return</span> oldConnect(<span class="keyword">self</span>, _cmd);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (<span class="keyword">void</span>)connect_orig &#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@&quot;origin connect&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (<span class="keyword">void</span>)exchange &#123;</span><br><span class="line">    </span><br><span class="line">    MSHookMessageEx([<span class="keyword">self</span> <span class="keyword">class</span>], <span class="keyword">@selector</span>(connect_orig), &amp;newConnect, &amp;oldConnect);</span><br><span class="line">    [<span class="keyword">self</span> connect_orig];   </span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">@end</span></span><br></pre></td></tr></table></figure>
+
+<p>6.　最后在你想测试的地方，初始化类，调用方法即可。（我是在 ViewController.m: -(void)viewDidLoad 中调用的）</p>
+<h2 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h2><h3 id="MSHookMessageEx"><a href="#MSHookMessageEx" class="headerlink" title="MSHookMessageEx"></a>MSHookMessageEx</h3><p>MSHookMessageEx 函数就是对 MSHookMessageInternal 函数的封装，除了 prefix 参数为 NULL 之外，其余的参数都原封不动的传入。</p>
+<h3 id="MSHookMessageInternal"><a href="#MSHookMessageInternal" class="headerlink" title="MSHookMessageInternal"></a>MSHookMessageInternal</h3><p>先厘清一下这个核心函数的整个流程。</p>
+<ol>
+<li>进入 MSHookMessageInternal 函数先是一大堆参数检查的 log， 比较清晰，就不分析了。然后调用 <code>Method method(MSFindMethod(_class, sel));</code> 通过 MSFindMethod 函数获取 sel 对应的方法 method；</li>
+<li>初始化一些值。字符指针 type 赋值为 method 的参数类型等描述。direct 赋值为 false，这个值代表着传入的参数 sel 是否为传入的参数 _class 中的方法，即是否为本类的方法。在接下来的第一个 for 循环中改变 direct 的值，这个循环就是用来判断 sel 是否是 _class 中的方法。如果不是本类的方法，执行第3步。如果是本类的方法，就跳过 if 函数，执行第4步。</li>
+<li>如果不是本类的方法，就根据运行设备的架构（32位的arm，i386 和 x86_64）添加 <code>class_getMethodImplementation(super,sel)</code> 以及 <code>执行 sel 对应的函数实现</code> 的机器码，将返回值存储在 old 中。然后执行第5步。</li>
+<li>如果是本类的方法，就跳过 if 函数，将找到的 sel 对应的方法 method 的实现 imp 赋给 old。然后执行第5步。</li>
+<li>然后将 old 的值赋给 *result，即 oldConnect 函数指针。</li>
+<li>如果 prefix != NULL，就给 _class 类添加一个 sel 为 prefix+sel，imp 为 old 的方法。</li>
+<li>如果是本类的方法，执行第8步。如果不是，执行 else 分支，第9步。</li>
+<li>direct = true，就通过 <code>method_setImplementation</code> 函数将传入的 newConnect 的函数地址赋给 sel 对应的方法 method 中的实现。即调用 connect_orig，会跳到 newConnect 的入口函数处。</li>
+<li>direct = false，则通过 <code>class_addMethod</code> 函数将函数名为 sel，函数地址为 newConnect 函数地址，函数类型为 type 的方法添加到 _class 类中。</li>
+</ol>
+<p>下面对主要部分作详细解释。</p>
+<h4 id="MSFindMethod"><a href="#MSFindMethod" class="headerlink" title="MSFindMethod"></a>MSFindMethod</h4><p>MSFindMethod 函数主要是用于找到传入的参数 sel 对应的 method。</p>
+<figure class="highlight arduino"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> Method <span class="title">MSFindMethod</span><span class="params">(Class _class, SEL sel)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span> (; _class != nil; _class = class_getSuperclass(_class)) &#123;</span><br><span class="line">        <span class="keyword">unsigned</span> <span class="keyword">int</span> <span class="built_in">size</span>;</span><br><span class="line">        <span class="function">Method *<span class="title">methods</span><span class="params">(class_copyMethodList(_class, &amp;<span class="built_in">size</span>))</span></span>;</span><br><span class="line">        <span class="keyword">if</span> (methods == <span class="literal">NULL</span>)</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">unsigned</span> <span class="keyword">int</span> j(<span class="number">0</span>); j != <span class="built_in">size</span>; ++j) &#123;</span><br><span class="line">            <span class="function">Method <span class="title">method</span><span class="params">(methods[j])</span></span>;</span><br><span class="line">            <span class="keyword">if</span> (!sel_isEqual(method_getName(methods[j]), sel))</span><br><span class="line">                <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">            <span class="built_in">free</span>(methods);</span><br><span class="line">            <span class="keyword">return</span> method;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="built_in">free</span>(methods);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> nil;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>主要是通过两个 for 循环，遍历参数 _class 及其父类（父类的父类…直到基类），通过函数 <code>class_copyMethodList</code> 取得 _class 的方法列表，通过第二个 for 循环来遍历方法列表，与 sel 字符串作比较，如果匹配成功，即找到 sel 对应的方法，返回该 method，否则一直遍历，直到最后返回 nil。</p>
+<blockquote>
+<p>这份源代码中，作者在使用 C++ 语言的初始化时，多用括号。如 int j = 0; 　作者常使用 int j(0);</p>
+</blockquote>
+<h4 id="if-direct"><a href="#if-direct" class="headerlink" title="if (!direct)"></a>if (!direct)</h4><figure class="highlight arduino"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line">    <span class="keyword">if</span> (!direct) &#123;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> defined(__arm__)</span></span><br><span class="line">        <span class="function"><span class="keyword">size_t</span> <span class="title">length</span><span class="params">(<span class="number">11</span> * <span class="keyword">sizeof</span>(<span class="keyword">uint32_t</span>))</span></span>;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">elif</span> defined(__i386__)</span></span><br><span class="line">        <span class="function"><span class="keyword">size_t</span> <span class="title">length</span><span class="params">(<span class="number">20</span>)</span></span>;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">elif</span> defined(__x86_64__)</span></span><br><span class="line">        <span class="function"><span class="keyword">size_t</span> <span class="title">length</span><span class="params">(<span class="number">50</span>)</span></span>;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">uint32_t</span> *<span class="title">buffer</span><span class="params">(<span class="keyword">reinterpret_cast</span>&lt;<span class="keyword">uint32_t</span> *&gt;(mmap(</span></span></span><br><span class="line"><span class="function"><span class="params">            <span class="literal">NULL</span>, length, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, <span class="number">-1</span>, <span class="number">0</span></span></span></span><br><span class="line"><span class="function"><span class="params">        )))</span></span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (<span class="built_in">buffer</span> == MAP_FAILED)</span><br><span class="line">            MSLog(MSLogLevelError, <span class="string">&quot;MS:Error:mmap() = %d&quot;</span>, errno);</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">if</span> (<span class="literal">false</span>) fail:</span><br><span class="line">            munmap(<span class="built_in">buffer</span>, length);</span><br><span class="line">        <span class="keyword">else</span> &#123;</span><br><span class="line">            Class super(class_getSuperclass(_class));</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> defined(__arm__)</span></span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">0</span>] = A$stmdb_sp$_$rs$((<span class="number">1</span> &lt;&lt; A$r0) | (<span class="number">1</span> &lt;&lt; A$r1) | (<span class="number">1</span> &lt;&lt; A$r2) | (<span class="number">1</span> &lt;&lt; A$r3) | (<span class="number">1</span> &lt;&lt; A$lr));</span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">1</span>] = A$ldr_rd_$rn_im$(A$r0, A$pc, ( <span class="number">8</span> - <span class="number">1</span> - <span class="number">2</span>) * <span class="number">4</span>);</span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">2</span>] = A$ldr_rd_$rn_im$(A$r1, A$pc, ( <span class="number">9</span> - <span class="number">2</span> - <span class="number">2</span>) * <span class="number">4</span>);</span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">3</span>] = A$ldr_rd_$rn_im$(A$lr, A$pc, (<span class="number">10</span> - <span class="number">3</span> - <span class="number">2</span>) * <span class="number">4</span>);</span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">4</span>] = A$blx_rm(A$lr);</span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">5</span>] = A$str_rd_$rn_im$(A$r0, A$sp, <span class="number">-4</span>);</span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">6</span>] = A$ldmia_sp$_$rs$((<span class="number">1</span> &lt;&lt; A$r0) | (<span class="number">1</span> &lt;&lt; A$r1) | (<span class="number">1</span> &lt;&lt; A$r2) | (<span class="number">1</span> &lt;&lt; A$r3) | (<span class="number">1</span> &lt;&lt; A$lr));</span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">7</span>] = A$ldr_rd_$rn_im$(A$pc, A$sp, <span class="number">-4</span> - (<span class="number">5</span> * <span class="number">4</span>));</span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">8</span>] = <span class="keyword">reinterpret_cast</span>&lt;<span class="keyword">uint32_t</span>&gt;(super);</span><br><span class="line">            <span class="built_in">buffer</span>[ <span class="number">9</span>] = <span class="keyword">reinterpret_cast</span>&lt;<span class="keyword">uint32_t</span>&gt;(sel);</span><br><span class="line">            <span class="built_in">buffer</span>[<span class="number">10</span>] = <span class="keyword">reinterpret_cast</span>&lt;<span class="keyword">uint32_t</span>&gt;(&amp;class_getMethodImplementation);</span><br><span class="line"><span class="meta">#<span class="meta-keyword">elif</span> defined(__i386__)</span></span><br><span class="line">            ......</span><br><span class="line"><span class="meta">#<span class="meta-keyword">elif</span> defined(__x86_64__)</span></span><br><span class="line">            ......</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (mprotect(<span class="built_in">buffer</span>, length, PROT_READ | PROT_EXEC) == <span class="number">-1</span>) &#123;</span><br><span class="line">                ......</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            old = <span class="keyword">reinterpret_cast</span>&lt;IMP&gt;(<span class="built_in">buffer</span>);</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (MSDebug) &#123;</span><br><span class="line">                ......</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>前两句代码比较容易理解，给 length 分配大小，然后给 buffer 分配内存，以4个字节为单位分配11个可读写的内存。然后将 super 赋值为 _class 的父类。</p>
+<p>接下来这一部分涉及到汇编和机器码的对应问题，后面的讲解主要以32位的 arm 为例，i386 和 x86_64 都跟它差不多，比它要更简单一点。</p>
+<p>推荐官方手册：ARM Architecture Reference Manual。非常详细和权威的参考资料。</p>
+<p>汇编语言对应着不同的机器语言指令集。一种汇编语言专用于某种计算机系统结构，而不像高级语言，可以在不同系统平台间移植。CPU 处理的时候实际上是处理的机器语言，也就是我们常说的机器码。由汇编器负责汇编语言到机器语言的转换。</p>
+<p><img src="/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/%E6%9C%BA%E5%99%A8%E7%A0%81%E6%A0%BC%E5%BC%8F.png"></p>
+<p>上图为与汇编语言相对应的通用的机器码格式。cond 为条件码，如 EQ(EQual to 0)、NE(Not Equal to 0)、CS(Carry Set)等等，如果是无条件，则为 AL(ALways)，对应的机器码为1110。</p>
+<p>26~27位是保留位。</p>
+<p>I 位，也就是第25位，是用来表明 shifter_operand 段存放的类型。0表示寄存器，1表示立即数。</p>
+<p>24~21位是 opcode，表明指令的类型。如 AND 为0000，SUB 为0010，MOV 为1101等等。</p>
+<p>S 位，第20位，表明是否影响 cpsr（程序状态寄存器），有则置1，否则置0。</p>
+<p>19~16位是指 Rn 寄存器，也就是第一个源操作数寄存器，根据每个指令的格式，有的指令有 Rn，有的没有。</p>
+<p>15~12位是指 Rd 寄存器，即目的寄存器，存放操作后的数据。</p>
+<p>11~0位标明第二个源操作数，若为立即数则填该立即数的二进制值，若为通用寄存器则填通用寄存器标号的二进制值。另外根据不同的指令，这一字段会有不同的具体划分，可查阅官方手册。</p>
+<p>根据 ARM.hpp 头文件中的宏定义，来具体分析这几句汇编代码。以第一句<code>A$stmdb_sp$_$rs$(...)</code> 为例，在头文件中的定义为：</p>
+<figure class="highlight gams"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">enum A<span class="symbol">$</span>r &#123;</span><br><span class="line">    A<span class="symbol">$</span>r0, A<span class="symbol">$</span>r1, A<span class="symbol">$</span>r2, A<span class="symbol">$</span>r3,</span><br><span class="line">    A<span class="symbol">$</span>r4, A<span class="symbol">$</span>r5, A<span class="symbol">$</span>r6, A<span class="symbol">$</span>r7,</span><br><span class="line">    A<span class="symbol">$</span>r8, A<span class="symbol">$</span>r9, A<span class="symbol">$</span>r10, A<span class="symbol">$</span>r11,</span><br><span class="line">    A<span class="symbol">$</span>r12, A<span class="symbol">$</span>r13, A<span class="symbol">$</span>r14, A<span class="symbol">$</span>r15,</span><br><span class="line">    A<span class="symbol">$</span>sp = A<span class="symbol">$</span>r13,</span><br><span class="line">    A<span class="symbol">$</span>lr = A<span class="symbol">$</span>r14,</span><br><span class="line">    A<span class="symbol">$</span>pc = A<span class="symbol">$</span>r15</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">#define A<span class="symbol">$</span>stmdb_sp<span class="symbol">$</span>_<span class="symbol">$</span>rs<span class="symbol">$</span>(rs) <span class="comment">/* stmdb sp!, &#123;rs&#125; */</span> \</span><br><span class="line">    (<span class="number">0xe9200000</span> | (A<span class="symbol">$</span>sp &lt;&lt; <span class="number">16</span>) | (rs))</span><br></pre></td></tr></table></figure>
+
+<p>0xe920000 的二进制数为1110 10 0 1001 0 000000000000，即无条件，操作指令为1001，0<del>19的字段通过按位或来填充。首先 A$sp 左移16位，A$sp = A$r13 = 13 = 1101，左移16位，即填充至19</del>16位，Rn 寄存器的位置，0~15的字段由 rs 填充。</p>
+<p>第一句 <code>buffer[ 0] = A$stmdb_sp$_$rs$((1 &lt;&lt; A$r0) | (1 &lt;&lt; A$r1) | (1 &lt;&lt; A$r2) | (1 &lt;&lt; A$r3) | (1 &lt;&lt; A$lr));</code> 即1左移0位，1左移1位，1左移2位，1左移3位，1左移14位，按位或之后为：1110 10 0 1001 0 1101 0100 0000 0000 1111。官方手册上关于 stmdb 的格式是这样的：</p>
+<p><img src="/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/stmdb.png"></p>
+<p>其中 registers 的解释为：</p>
+<p><img src="/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/register_list.png"></p>
+<p>上面的代码执行后，在第0、1、2、3、14位均为1，也就是代表了 r0、r1、r2、r3、lr 寄存器。因此我们将机器码整理为汇编语言，即为 <code>stmdb sp! &#123;r0~r3,lr&#125;</code>。</p>
+<p>将后面的几句依次整理为汇编语言：</p>
+<p><img src="/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/%E6%9C%BA%E5%99%A8%E7%A0%81%E5%AF%B9%E6%AF%94.png"></p>
+<p>即为</p>
+<figure class="highlight armasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">stmdb</span>  <span class="built_in">sp</span>! &#123;<span class="built_in">r0</span>~<span class="built_in">r3</span>, <span class="built_in">lr</span>&#125;</span><br><span class="line"><span class="keyword">ldr</span>    <span class="built_in">r0</span>, [<span class="built_in">pc</span>, <span class="number">#0x14</span>]</span><br><span class="line"><span class="keyword">ldr</span>    <span class="built_in">r1</span>, [<span class="built_in">pc</span>, <span class="number">#0x14</span>]</span><br><span class="line"><span class="keyword">ldr</span>    <span class="built_in">r2</span>, [<span class="built_in">pc</span>, <span class="number">#0x14</span>]</span><br><span class="line"><span class="keyword">blx</span>    <span class="built_in">lr</span></span><br><span class="line"><span class="keyword">str</span>    <span class="built_in">r0</span>, [<span class="built_in">sp</span>, #-<span class="number">0x4</span>]</span><br><span class="line"><span class="symbol">ldia</span>   <span class="built_in">sp</span>!, &#123;<span class="built_in">r0</span>~<span class="built_in">r3</span>, <span class="built_in">lr</span>&#125;</span><br><span class="line"><span class="keyword">ldr</span>    <span class="built_in">pc</span>, [<span class="built_in">sp</span>, #-<span class="number">0x18</span>]</span><br></pre></td></tr></table></figure>
+
+<p>我们在 newConnect 函数的末尾 <code>return oldConnect(self, _cmd)</code> 处下一个断点，然后在控制台输入几次 si 命令，即可看到增加的这几行汇编代码与我们分析的一样，如下图：</p>
+<p><img src="/images/2017-03-07-%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/%E6%B1%87%E7%BC%96.png"></p>
+<p>那么这几行汇编代码是什么意思呢？<br>第1行，是将 r0~r3，以及 lr 寄存器推入栈中，即保存现在的状态。</p>
+<p>第2、3、4行，将 pc+0x14 处的数值存入 r0、r1、lr 寄存器。这几行汇编指令都是以机器码的形式写入 buffer 中的，buffer[0]~buffer[7] 保存了这8条指令。<code>buffer[ 8] = reinterpret_cast&lt;uint32_t&gt;(super);</code> 即保存的是 super （_class 父类）的值，buffer[9] 保存的是 sel 的值，buffer[10] 保存的是 class_getMethodImplementation 的地址。</p>
+<blockquote>
+<p>有关 pc 的计算。<br>　　PC 值（program counter）表示下一条指令存储的地址。由于 ARM 采用流水线来提高 CPU 利用效率，无论是 ARM7 的3级流水线还是 ARM9 的5级流水线，如果当前指令在执行，那么下一条指令一定正在译码，再下一条指令正在读取。<br>　　因此 PC 值实际上指的是当前执行指令的下一条的再一下条指令。</p>
+</blockquote>
+<p>第5行，跳到 lr 寄存器中的地址处，执行指令代码，即 buffer[10]，class_getMethodImplementation 函数，它的参数为 r0,r1。那么，也就是执行 <code>class_getMethodImplementation(super, sel)；</code></p>
+<p>第6行，lr 寄存器存储的地址中的代码执行完毕后，将返回值 r0 寄存器中的值保存到栈中，即 sp-0x4 中，然后 sp = sp -0x4。也就是说在栈中保存了 sel 对应的 imp 值。</p>
+<p>第7行，将 r0~r3，以及 lr 寄存器推出栈，恢复之前的状态。</p>
+<p>第8行，将 pc 指向 sp-0x18 处的值。因为第7行指令执行完之后，sp 的值也恢复到第1条指令执行之前的状态，所以需要 sp-0x18 来找到再第6条指令处保存的返回值，并执行。（有关 ARM 中栈以及 SP 的操作，可以参考我之前的文章 <a target="_blank" rel="noopener" href="https://amywushu.github.io/2016/10/12/%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E6%A0%88%C2%B7%E5%8F%82%E6%95%B0%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F.html">栈·参数存储排布</a>）</p>
+<p>因此整个汇编代码做的事情实际上就是前面在流程中提到的，根据运行设备的架构（32位的arm，i386 和 x86_64）来执行方法调用<code>class_getMethodImplementation(super,sel)</code>，以及执行这个方法返回的 imp。</p>
+<blockquote>
+<p>　　class_getMethodImplementation 函数内部会调用 lookUpImpOrNil 函数，这个函数接着又会调用 <code>lookUpImpOrForward</code> 函数。<br>　　 而 lookUpImpOrForward 正是 objc_msgSend 消息函数在没有缓存的时候，将会执行的函数。因此 class_getMethodImplementation 函数寻找对应的 imp 的流程跟无 cache 发送消息的流程是一样的，会往上寻找父类的方法列表，一直到基类的方法列表，找不到再进行消息转发等等。（具体内容可以参考我之前的文章 <a target="_blank" rel="noopener" href="https://amywushu.github.io/2016/11/09/%E9%80%86%E5%90%91%E7%9F%A5%E8%AF%86-%E9%80%9A%E8%BF%87%E6%B1%87%E7%BC%96%E8%A7%A3%E8%AF%BB-objc_msgSend.html">通过汇编解读 objc_msgSend</a>）</p>
+</blockquote>
+<p>最后是将 buffer 的地址赋给 old，这样，在执行 connect_orig 时，就会跳到 buffer[0] 处执行那几条机器码，找到 sel 对应的 imp 并执行。</p>
+<h4 id="为什么要使用-if-direct-这段代码"><a href="#为什么要使用-if-direct-这段代码" class="headerlink" title="为什么要使用 if (!direct) 这段代码"></a>为什么要使用 if (!direct) 这段代码</h4><p>在 MSHookMessageEx 的<a target="_blank" rel="noopener" href="http://www.cydiasubstrate.com/api/c/MSHookMessageEx/">官方介绍页面</a>有这样几段话：</p>
+<blockquote>
+<p>However, while these APIs function quite well when there are only a small number of people making modifications, they fail to satisfy more complex use cases; in particular, there are ordering problems if multiple people attempt to hook the same message at different points in an inheritance hierarchy.</p>
+<p>Finally, it is important that classes that are being instrumented are not “initialized” as they are being modified (which would both change the ordering of the target program, as well as make it impossible to hook the initialization sequence); over time, the way Objective-C runtime APIs implement this has changed.</p>
+<p>Substrate solves all of these problems by providing a replacement API that takes all of these issues into account, always making certain that the classes are not initialized and that the right “next implementation” is used while walking back up an inheritance hierarchy.</p>
+</blockquote>
+<p>作者讲得非常清楚。这一部分将机器码嵌入到原始方法的 IMP 之前，使得在调用自定义方法之后，调用原始方法之前，有一个 old = class_getMethodImplementation(super, sel) 的动作，也就是说，是在执行方法的时候动态查找原始 IMP 的函数，而不是在 MSHookMessageEx 函数执行的时候，就已经确定好了原始 IMP 的地址。</p>
+<p><strong>这样做是为了解决在一个继承体系中的不同节点处，hook 相同函数的问题。</strong></p>
+<p>现在让我们设想一个情景：有三个类，Parent、Child、Grandson，其中 Grandson 类继承于 Child 类，Child 类继承于 Parent 类。</p>
+<p>在 Parent 类中实现了一个函数： - (void)parent_connect。<br>在 Child 类、Grandson 类中声明这个函数但并没有实现。<br>在 Child 类以及 Grandson 类中均使用 MSHookMessageEx 函数 hook 了 - (void)parent_connect 函数。</p>
+<p>情景1：</p>
+<ol>
+<li>先调用 <strong>Child 类</strong>中的 hook 函数，</li>
+<li>再调用 Grandson 类中的 hook 函数。</li>
+</ol>
+<p>情景2：</p>
+<ol>
+<li>先调用 <strong>Grandson 类</strong>中的 hook 函数，</li>
+<li>再调用 Child 类中的 hook 函数，</li>
+<li>最后再调用一次 <strong>Grandson 类</strong>中的 hook 函数。</li>
+</ol>
+<p><strong>1）如果没有这段嵌入的代码，即注释掉 if (!direct){…} 这段代码。</strong></p>
+<p>在情景1中，</p>
+<ol>
+<li>依次调用Child 类中的自定义函数、 Parent 类中的原始函数，</li>
+<li>依次调用 Grandson 类中的自定义函数、 Child 类中的自定义函数、 Parent 类中的原始函数。</li>
+</ol>
+<p>在情景2中，</p>
+<ol>
+<li>依次调用 Grandson 类中的自定义函数、 Parent 类中的原始函数，</li>
+<li>依次调用 Child 类中的自定义函数、 Parent 类中的原始函数，</li>
+<li><strong>仍是依次调用 Grandson 类中的自定义函数、 Parent 类中的原始函数。</strong></li>
+</ol>
+<p>　　也就是说，Grandson 类中的 - (void)parent_connect 函数的执行顺序在调用 hook 函数时就已经确定了，并不会因为情景2中的第2步 Child 函数的 hook 使得调用顺序改变。</p>
+<p><strong>2）如果有这段嵌入代码，</strong></p>
+<p>情景1执行状态相同。<br>情景2则为，</p>
+<ol>
+<li>依次调用 Grandson 类中的自定义函数、 Parent 类中的原始函数，</li>
+<li>依次调用 Child 类中的自定义函数、 Parent 类中的原始函数，</li>
+<li><strong>依次调用 Grandson 类中的自定义函数、 Child 类中的自定义函数、 Parent 类中的原始函数。</strong></li>
+</ol>
+<p>　　 Grandson 类中的 - (void)parent_connect 函数的执行顺序是在该函数调用时才会通过嵌入的那段机器码去查找原始方法的实现。这样做维护了原来的继承体系，这也是 OC runtime 的体现。</p>
+<h3 id="if-prefix-NULL"><a href="#if-prefix-NULL" class="headerlink" title="if (prefix!=NULL)"></a>if (prefix!=NULL)</h3><p>这一部分比起上一部分来说就简单多了。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (prefix != <span class="literal">NULL</span>) &#123;</span><br><span class="line">        <span class="function"><span class="keyword">const</span> <span class="keyword">char</span> *<span class="title">name</span><span class="params">(sel_getName(sel))</span></span>;</span><br><span class="line">        <span class="function"><span class="keyword">size_t</span> <span class="title">namelen</span><span class="params">(<span class="built_in">strlen</span>(name))</span></span>;</span><br><span class="line">        <span class="function"><span class="keyword">size_t</span> <span class="title">fixlen</span><span class="params">(<span class="built_in">strlen</span>(prefix))</span></span>;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">char</span> *<span class="title">newname</span><span class="params">(<span class="keyword">reinterpret_cast</span>&lt;<span class="keyword">char</span> *&gt;(alloca(fixlen + namelen + <span class="number">1</span>)))</span></span>;</span><br><span class="line">        <span class="built_in">memcpy</span>(newname, prefix, fixlen);</span><br><span class="line">        <span class="built_in">memcpy</span>(newname + fixlen, name, namelen + <span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!class_addMethod(_class, sel_registerName(newname), old, type))</span><br><span class="line">            MSLog(MSLogLevelError, <span class="string">&quot;MS:Error: failed to rename [%s %s]&quot;</span>, class_getName(_class), name);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>总体来说，就是给传入的参数 sel 字符串加上前缀 prefix，然后将 old 作为 prefix+sel 的实现，type 作为它的函数类型，将这个 method 加入 _class 的方法列表。</p>
+<p>比如 prefix = “xxx”，sel = @selector(connect_orig)。执行了这段代码之后，只需要在头文件中声明　- (void)xxxconnect_orig;　不用在 .m 文件中实现，直接调用　[self xxxconnect_orig];　就会执行原来的 connect_orig 代码。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>关于 if (!direct) 这个分支，总的来说就是:</p>
+<ul>
+<li>如果 direct == true，这个 sel 是本类的方法，就执行<br>old = method_getImplementation(method);<br>method_setImplementation(method, imp);</li>
+<li>如果 direct == false，不是本类的方法，就把<br>old = class_getMethodImplementation(super, sel) 这个函数通过机器码嵌入到调用原函数之前，使得在调用自定义方法后，动态查询原始 IMP 指针;<br>最后通过 class_addMethod(_class, sel, imp, type) 加入到本类的方法列表中;</li>
+</ul>
+<blockquote>
+<p>执行 class_addMethod 这个方法，主要是为了避免使用 method_setImplementation 覆盖父类已有的函数，所以在本类中动态添加了这个方法。</p>
+</blockquote>
+<p>另外，在 objc/runtime.h 中提到：</p>
+<blockquote>
+<p>@note  class_getMethodImplementation may be faster than<br>method_getImplementation(class_getInstanceMethod(cls, name)).</p>
+</blockquote>
+<hr>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] ARM机器码分析　<a target="_blank" rel="noopener" href="http://www.mamicode.com/info-detail-893760.html">http://www.mamicode.com/info-detail-893760.html</a><br>[2] 3.Arm机器码　<a target="_blank" rel="noopener" href="http://www.cnblogs.com/FORFISH/p/4199600.html">http://www.cnblogs.com/FORFISH/p/4199600.html</a><br>[3] C++标准转换运算符reinterpret_cast 　<br><a target="_blank" rel="noopener" href="http://www.cnblogs.com/ider/archive/2011/07/30/cpp_cast_operator_part3.html">http://www.cnblogs.com/ider/archive/2011/07/30/cpp_cast_operator_part3.html</a></p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">https://harpersu00.github.io/2017-03-07-Hook-原理之-CydiaSubstrate（一）：MSHookMessageEx/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2017-03-01-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-Method-Swizzling/" rel="prev" title="Hook 原理之 Method Swizzling">
+      <i class="fa fa-chevron-left"></i> Hook 原理之 Method Swizzling
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" rel="next" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">
+      Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E6%83%85%E6%8F%90%E8%A6%81"><span class="nav-number">1.</span> <span class="nav-text">前情提要</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91"><span class="nav-number">2.</span> <span class="nav-text">源码编译</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="nav-number">3.</span> <span class="nav-text">源码解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#MSHookMessageEx"><span class="nav-number">3.1.</span> <span class="nav-text">MSHookMessageEx</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MSHookMessageInternal"><span class="nav-number">3.2.</span> <span class="nav-text">MSHookMessageInternal</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#MSFindMethod"><span class="nav-number">3.2.1.</span> <span class="nav-text">MSFindMethod</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#if-direct"><span class="nav-number">3.2.2.</span> <span class="nav-text">if (!direct)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E4%BD%BF%E7%94%A8-if-direct-%E8%BF%99%E6%AE%B5%E4%BB%A3%E7%A0%81"><span class="nav-number">3.2.3.</span> <span class="nav-text">为什么要使用 if (!direct) 这段代码</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#if-prefix-NULL"><span class="nav-number">3.3.</span> <span class="nav-text">if (prefix!&#x3D;NULL)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Reference"><span class="nav-number">5.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">6</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/2018-09-19-GOT%20%E8%A1%A8%E5%8A%AB%E6%8C%81/" title="GOT 表劫持">GOT 表劫持</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/2017-05-09-%EF%BC%88%E8%AF%91%EF%BC%89Handling-low-memory-conditions-in-iOS-and-Mavericks/" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/2017-04-12-Objective-C-%E4%B8%AD%E7%9A%84%E7%B1%BB%E7%BB%93%E6%9E%84/" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/2017-03-23-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-07T00:00:00+08:00">
+                  &emsp;03-07
+                </time>
+                <a href="/2017-03-07-Hook-%E5%8E%9F%E7%90%86%E4%B9%8B-CydiaSubstrate%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9AMSHookMessageEx/" title="Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

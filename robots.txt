@@ -1,0 +1,16 @@
+#hexo robots.txt
+User-agent: *
+
+Allow: /
+Allow: /archives/
+
+Disallow: /vendors/
+Disallow: /js/
+Disallow: /css/
+Disallow: /fonts/
+Disallow: /vendors/
+Disallow: /fancybox/
+
+Sitemap: https://harpersu00.github.io/search.xml
+Sitemap: https://harpersu00.github.io/sitemap.xml
+Sitemap: https://harpersu00.github.io/baidusitemap.xml

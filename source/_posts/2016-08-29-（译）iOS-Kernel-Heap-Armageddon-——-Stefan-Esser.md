@@ -1,7 +1,8 @@
 ---
 title: （译）iOS Kernel Heap Armageddon —— Stefan Esser
-date: 2016-08-29
 categories: 翻译
+abbrlink: '64639042'
+date: 2016-08-29 00:00:00
 ---
 
 ## **摘要**

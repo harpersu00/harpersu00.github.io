@@ -1,7 +1,8 @@
 ---
 title: copy 与 mutableCopy（传说中的深浅拷贝）
-date: 2016-10-20
 categories: 编程语言语法
+abbrlink: accb5a79
+date: 2016-10-20 00:00:00
 ---
 
 ## 概念

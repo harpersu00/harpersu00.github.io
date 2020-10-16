@@ -1,7 +1,8 @@
 ---
 title: Hook 原理之 Method Swizzling
-date: 2017-03-01
 categories: 基础知识
+abbrlink: 3062bfbd
+date: 2017-03-01 00:00:00
 ---
 
 ## 基础知识提要

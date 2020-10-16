@@ -1,7 +1,8 @@
 ---
 title: Hook 原理之 fishhook 源码解析
-date: 2017-02-27
 categories: 源码解析
+abbrlink: 80b74e12
+date: 2017-02-27 00:00:00
 ---
 
 ## 基础知识提要

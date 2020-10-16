@@ -1,7 +1,8 @@
 ---
 title: AFNetworking 3.1.0 第一部分
-date: 2016-09-06
 categories: 源码解析
+abbrlink: fbf25fde
+date: 2016-09-06 00:00:00
 ---
 
 ## **写在前面**

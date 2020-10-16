@@ -1,7 +1,8 @@
 ---
 title: Objective-C 中的类结构
-date: 2017-04-12
 categories: 编程语言语法
+abbrlink: ebd19f03
+date: 2017-04-12 00:00:00
 ---
 
 ## 引子

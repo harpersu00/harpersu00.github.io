@@ -14,8 +14,12 @@ timezone:
 ## If your site is put in a subdirectory, set url as 'http://yoursite.com/child' and root as '/child/'
 url: https://harpersu00.github.io
 root: /
-permalink: :title/
+#permalink: :title.html
 permalink_defaults:
+permalink: :abbrlink.html  # 此处可以自己设置，也可以直接使用 :/abbrlink
+abbrlink:
+  alg: crc32   #算法： crc16(default) and crc32
+  rep: hex     #进制： dec(default) and hex
 
 # Directory
 source_dir: source
@@ -25,7 +29,7 @@ archive_dir: archives
 category_dir: categories
 code_dir: downloads/code
 i18n_dir: :lang
-skip_render: 
+skip_render: [baidu_verify_code-AwPDk8Ph3o.html, googlefeb1016325299913.html]
 
 # Writing
 new_post_name: :title.md # File name of new posts
@@ -89,7 +93,13 @@ tag_generator:
 #头像设置
 #avatar: /images/yzh.jpg
 
-  
+ # hexo sitemap
+sitemap:
+  path: sitemap.xml
+
+baidusitemap:
+  path: baidusitemap.xml
+
 #local search
 search:
   path: search.xml

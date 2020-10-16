@@ -1,7 +1,8 @@
 ---
 title: Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx
-date: 2017-03-23
 categories: 源码解析
+abbrlink: 9acae560
+date: 2017-03-23 00:00:00
 ---
 
 ## 前情提要

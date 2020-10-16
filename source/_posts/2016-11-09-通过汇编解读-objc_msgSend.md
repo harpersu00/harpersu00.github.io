@@ -1,7 +1,8 @@
 ---
 title: 通过汇编解读 objc_msgSend
-date: 2016-11-09
 categories: 逆向知识
+abbrlink: 77e03b7f
+date: 2016-11-09 00:00:00
 ---
 
 ## 基础知识提要

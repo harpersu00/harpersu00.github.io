@@ -1,7 +1,8 @@
 ---
 title: （译）Handling low memory conditions in iOS and Mavericks
-date: 2017-05-09 
 categories: 翻译
+abbrlink: 50ed72f
+date: 2017-05-09 00:00:00
 ---
 
 > 翻译自 Jonathan Levin’s site   原文链接：http://newosxbook.com/articles/MemoryPressure.html

@@ -134,7 +134,7 @@ static void rebind_symbols_for_image(struct rebindings_entry *rebindings,
 //接下段代码
 ```
 
-首先定义了4个会被用到的结构体指针。其中 segment\_command\_t 就是LC\_SEGMENT\_64 结构，symtab\_command 是 Section Header 中 LC\_SYMTAB 的结构，dysymtab\_command 是 Section Header 中 LC\_DYSYMTAB 的结构。（有关 Mach-O 文件的结构可以参考我之前的文章 [解读 Mach-O 文件格式](https://amywushu.github.io/2017/02/21/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86-%E8%A7%A3%E8%AF%BB-Mach-O-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F.html)）
+首先定义了4个会被用到的结构体指针。其中 segment\_command\_t 就是LC\_SEGMENT\_64 结构，symtab\_command 是 Section Header 中 LC\_SYMTAB 的结构，dysymtab\_command 是 Section Header 中 LC\_DYSYMTAB 的结构。（有关 Mach-O 文件的结构可以参考我之前的文章 [解读 Mach-O 文件格式](https://harpersu00.github.io/eeb03f45.html)）
 
 接下来跳过 Mach-O 的 Header 结构，开始遍历 Load Commands。通过 Header->ncmds，以及 Segment->cmdsize 来控制循环。通过遍历，找到 LC\_SEGMENT\_64\(\_LINKEDIT\)，赋值给 linkedit\_segment，然后给 symtab\_cmd 和 dysymtab\_cmd 赋值。
 

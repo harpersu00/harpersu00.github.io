@@ -7,7 +7,7 @@ date: 2017-03-23 00:00:00
 
 ## 前情提要
 
-在上一篇博文“[Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx](https://amywushu.github.io/2017/03/07/逆向知识-Hook-原理之-CydiaSubstrate（一）：MSHookMessageEx.html)”中，我分析了 MSHookMessageEx 以前的老代码，也就是 iOS5 版本。那么在这一篇文中，我将通过逆向来分析新版的 MSHookMessageEx。
+在上一篇博文“[Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx](https://harpersu00.github.io/92be8389.html)”中，我分析了 MSHookMessageEx 以前的老代码，也就是 iOS5 版本。那么在这一篇文中，我将通过逆向来分析新版的 MSHookMessageEx。
 
 两个版本的大部分代码和流程都差不多，主要区别在于，当 hook 的方法不是本类方法的时候，老版本的代码是通过嵌入机器码来获取 IMP，新版本是通过构建 trampoline（蹦床）页来获取 IMP。
 

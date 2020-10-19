@@ -22,7 +22,7 @@ CydiaSubstrate，作者为 Jay Freeman(saurik)，在iOS7越狱之前名为 Mobil
 
 CydiaSubstrate 源代码现在已经不开源了，我调试用的代码是 iOS5 的时候的版本，[GitHub](https://github.com/r-plus/substrate)。虽然已经过时很久，仅支持32位的移动端，以及32/64位的 PC 端，但其中还是有很多东西值得学习。
 
-正如前文所说，MSHookMessageEx 是针对 OC 函数的 hook，因此它也是采用的 Method Swizzling 方法（详见我之前的文章 [Hook 原理之 Method Swizzling](https://amywushu.github.io/2017/03/01/基础知识-Hook-原理之-Method-Swizzling.html#)），下面我们来分析一下老版本中的源代码。核心代码在 C++ 文件 `ObjectiveC.cpp` 中。
+正如前文所说，MSHookMessageEx 是针对 OC 函数的 hook，因此它也是采用的 Method Swizzling 方法（详见我之前的文章 [Hook 原理之 Method Swizzling](https://harpersu00.github.io/3062bfbd.html)），下面我们来分析一下老版本中的源代码。核心代码在 C++ 文件 `ObjectiveC.cpp` 中。
 
 1. 首先需要在你的工程中引入以下几个文件：ARM.hpp、x86.hpp、CydiaSubstrate.h、Debug.hpp、Debug.cpp 以及 Log.hpp，后面三个文件可以不导入，修改几处 Log 的代码即可。
 2. 然后在工程中添加一对新的 C++ 文件（即实现文件和头文件），我的命名为 MyMSHookMessageEx。
@@ -257,12 +257,12 @@ ldr    pc, [sp, #-0x18]
 
 第7行，将 r0~r3，以及 lr 寄存器推出栈，恢复之前的状态。
 
-第8行，将 pc 指向 sp-0x18 处的值。因为第7行指令执行完之后，sp 的值也恢复到第1条指令执行之前的状态，所以需要 sp-0x18 来找到再第6条指令处保存的返回值，并执行。（有关 ARM 中栈以及 SP 的操作，可以参考我之前的文章 [栈·参数存储排布](https://amywushu.github.io/2016/10/12/逆向知识-栈·参数存储方式.html)）
+第8行，将 pc 指向 sp-0x18 处的值。因为第7行指令执行完之后，sp 的值也恢复到第1条指令执行之前的状态，所以需要 sp-0x18 来找到再第6条指令处保存的返回值，并执行。（有关 ARM 中栈以及 SP 的操作，可以参考我之前的文章 [栈·参数存储排布](https://harpersu00.github.io/d3a97ef3.html)）
 
 因此整个汇编代码做的事情实际上就是前面在流程中提到的，根据运行设备的架构（32位的arm，i386 和 x86_64）来执行方法调用`class_getMethodImplementation(super,sel)`，以及执行这个方法返回的 imp。
 
 > 　　class_getMethodImplementation 函数内部会调用 lookUpImpOrNil 函数，这个函数接着又会调用 `lookUpImpOrForward` 函数。
-> 　　 而 lookUpImpOrForward 正是 objc_msgSend 消息函数在没有缓存的时候，将会执行的函数。因此 class_getMethodImplementation 函数寻找对应的 imp 的流程跟无 cache 发送消息的流程是一样的，会往上寻找父类的方法列表，一直到基类的方法列表，找不到再进行消息转发等等。（具体内容可以参考我之前的文章 [通过汇编解读 objc_msgSend](https://amywushu.github.io/2016/11/09/逆向知识-通过汇编解读-objc_msgSend.html)）
+> 　　 而 lookUpImpOrForward 正是 objc_msgSend 消息函数在没有缓存的时候，将会执行的函数。因此 class_getMethodImplementation 函数寻找对应的 imp 的流程跟无 cache 发送消息的流程是一样的，会往上寻找父类的方法列表，一直到基类的方法列表，找不到再进行消息转发等等。（具体内容可以参考我之前的文章 [通过汇编解读 objc_msgSend](https://harpersu00.github.io/77e03b7f.html)）
 
 最后是将 buffer 的地址赋给 old，这样，在执行 connect_orig 时，就会跳到 buffer[0] 处执行那几条机器码，找到 sel 对应的 imp 并执行。
 

@@ -193,7 +193,7 @@ objc_object::ISA()
 
 ## class_data_bits_t 结构体
 
-> Class superclass 是当前类的父类指针，cache_t cache 在我之前的一篇文章“[通过汇编解读 objc_msgSend](https://amywushu.github.io/2016/11/09/逆向知识-通过汇编解读-objc_msgSend.html)”中有详细讲解。
+> Class superclass 是当前类的父类指针，cache_t cache 在我之前的一篇文章“[通过汇编解读 objc_msgSend](https://harpersu00.github.io/77e03b7f.html)”中有详细讲解。
 
 `class_data_bits_t` 结构体只包含有一个 uintptr_t 类型的 bits。另外我们可以通过它的 data() 方法，访问64位中的第3~47位，返回一个 `class_rw_t*` 指针。objc_class 中的 data() 方法仅仅是对它做了一个封装。
 

@@ -9,7 +9,7 @@ date: 2017-03-01 00:00:00
 
 Method Swizzling 其实就是利用了 `runtime` 机制，替换了调用的方法（method）的实现（imp）。很多人一看到有 runtime 就头疼了，跟 runloop 一样，由于被太多大牛提起，反而心生胆怯，觉得是一个很难理解的机制。
 
-runtime 运行时机制，主要是在 OC 和 C 语言（或汇编语言）之间架了一座桥梁。比如我之前的文章 [通过汇编解读 objc_msgSend](https://amywushu.github.io/2016/11/09/逆向知识-通过汇编解读-objc_msgSend.html) 中提到的调用方法的本质是发送消息，方法调用是 OC 中的，而消息发送，找到方法的入口则是 C （或汇编）中的。这其中转换的过程，就是 runtime。
+runtime 运行时机制，主要是在 OC 和 C 语言（或汇编语言）之间架了一座桥梁。比如我之前的文章 [通过汇编解读 objc_msgSend](https://harpersu00.github.io/77e03b7f.html) 中提到的调用方法的本质是发送消息，方法调用是 OC 中的，而消息发送，找到方法的入口则是 C （或汇编）中的。这其中转换的过程，就是 runtime。
 
 <!-- more -->
 

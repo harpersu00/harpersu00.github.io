@@ -2,7 +2,7 @@
 title: 通过汇编解读 objc_msgSend
 categories: 逆向知识
 abbrlink: 77e03b7f
-date: 2016-11-09 00:00:00
+date: 2016-11-09
 ---
 
 ## 基础知识提要
@@ -48,7 +48,7 @@ objc\_msgSend 的具体实现由汇编语言编写而成，不同平台有不同
 
 对照图1来讲，流程为黄色的那根线，1\~2 \-> 29\~34 \-> 6 \-> …
 
-判断 X0\<0，即地址最高位为1，这是 Tagger Pointer 类型的标志（对于 ARM64 架构来讲），关于这个类型，部分内容在我之前的文章[copy 与 mutableCopy（传说中的深浅拷贝）](https://amywushu.github.io/2016/10/20/%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89.html)中5.4节有提到。
+判断 X0\<0，即地址最高位为1，这是 Tagger Pointer 类型的标志（对于 ARM64 架构来讲），关于这个类型，部分内容在我之前的文章[copy 与 mutableCopy（传说中的深浅拷贝）](https://harpersu00.github.io/accb5a79.html)中5.4节有提到。
 
 loc\_1800b9c30 这个模块取出了 Tagger Pointer 的类索引表，赋值给 X10。  
 下一行 `UBFM X11,X0,#0x3C,#0x3F`，取 0x3C\~0x3F 中的值赋给 X11，其余位以0填充，与图1第32行的意思相同，都是取出最高4位，比如 NSString 类型的 Tagger Pointer 最高4位为 a，运算过后，x11 = 0xa 。  
@@ -157,7 +157,7 @@ lookUpImpOrForward 主要做了以下几个工作
 
 ---
 
-## [](#Reference "Reference")Reference
+## Reference
 
 \[1\] ObjC Runtime（五）：消息传递机制　<https://xiuchundao.me/post/runtime-messaging>  
 \[2\] 从源代码看 ObjC 中消息的发送　<http://draveness.me/message/>  

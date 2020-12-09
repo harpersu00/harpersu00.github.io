@@ -23,18 +23,18 @@
     var CONFIG = {"hostname":"harpersu00.github.io","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"Available values":"default | flat | mac","style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
   </script>
 
-  <meta name="description" content="Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS。它的运行是常驻在内核中通用用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是Re">
+  <meta name="description" content="Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS等。它是常驻在内核中的，通过用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是Re">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Linux 动态调试之 SystemTap（原理篇）">
 <meta property="og:url" content="https://harpersu00.github.io/1bc0f92f.html">
 <meta property="og:site_name" content="harpersu00&#39;s Blog">
-<meta property="og:description" content="Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS。它的运行是常驻在内核中通用用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是Re">
+<meta property="og:description" content="Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS等。它是常驻在内核中的，通过用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是Re">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://harpersu00.github.io/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/stap_flow_diagram.png">
 <meta property="og:image" content="https://harpersu00.github.io/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/kprobe.png">
 <meta property="og:image" content="https://harpersu00.github.io/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/systemtap-how-works.png">
 <meta property="article:published_time" content="2020-12-06T16:00:00.000Z">
-<meta property="article:modified_time" content="2020-12-09T03:40:02.678Z">
+<meta property="article:modified_time" content="2020-12-09T06:23:25.377Z">
 <meta property="article:author" content="harpersu00">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https://harpersu00.github.io/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/stap_flow_diagram.png">
@@ -241,22 +241,22 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <p>Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS。它的运行是常驻在内核中通用用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是RedHat的SystemTap。</p>
+        <p>Solaris 系统的DTrace是动态跟踪，动态调试技术的鼻祖，很多系统都有dtrace，比如Windows，macOS等。它是常驻在内核中的，通过用户执行的dtrace命令，把由D语言编写的脚本，提交到内核中的运行时执行。但是DTrace本身无法在linux中运行。于是大家开始尝试将DTrace移植到Linux，或者说让Linux也拥有像dtrace这样强大的动态调试工具，其中最著名的就是RedHat的SystemTap。</p>
 <a id="more"></a>
 
 <blockquote>
-<p>另外，在Linux 4.9-rc1之后，出现了另一个强有力的工具BPF（The Berkeley Packet Filter），以及扩展后的eBPF，从某种程度上来说，更接近DTrace的动态追踪机制。eBPF已经被4.x版本及之后的内核集成了，它是一个持续在内核态运行的，解释执行字节码的虚拟机，编译成ebpf字节码，比编译内核模块要快得多。（是的，SystemTap就是编译的内核模块）</p>
+<p>另外，在Linux 4.9-rc1之后，出现了另一个强有力的工具BPF（The Berkeley Packet Filter），以及扩展后的eBPF，从某种程度上来说，更接近DTrace的动态追踪机制。eBPF已经被4.x版本及之后的内核集成了，它是一个持续在内核态运行的，解释执行字节码的虚拟机。性能上，编译成ebpf字节码执行，比编译内核模块要快得多。（是的，SystemTap就是编译的内核模块）</p>
 </blockquote>
 <p>SystemTap运行流程：</p>
 <p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/stap_flow_diagram.png"></p>
-<p>如上图所示，我们使用SystemTap时，虽然编写的是.stp文件，使用的是stp自己的语言（类似于脚本语言和C语言），但systemtap会将这些代码翻译成C代码，再将C代码编译为内核模块.ko，最后加载内核模块。</p>
+<p>如上图所示，我们使用SystemTap时，虽然编写的是.stp文件，使用的是stp自己的语言（类似于dtrace脚本语言和C语言），但systemtap会在编译过程中将这些代码翻译成C代码，再将C代码编译为内核模块.ko，最后加载内核模块。</p>
 <blockquote>
 <p>前4个阶段和后面3个阶段可以不在同一台机器上，即在开发机器上编译内核模块，在目标机器上运行（但内核版本要一致）。</p>
 <p>stap 使用命令选项-p 序号，可以使systemtap在特定阶段停下来，比如stap -p3, 会在生成C代码之后停下来。</p>
 </blockquote>
-<h2 id="Parse（词法语法分析）"><a href="#Parse（词法语法分析）" class="headerlink" title="Parse（词法语法分析）"></a>Parse（词法语法分析）</h2><p>这部分以及下一步跟普通的程序编译过程是一样的，parse阶段主要是解析stp代码，生成AST树（抽象语法树，Abstract Syntax Tree），检查语法错误。</p>
+<h2 id="Parse（词法语法分析）"><a href="#Parse（词法语法分析）" class="headerlink" title="Parse（词法语法分析）"></a>Parse（词法语法分析）</h2><p>这部分跟普通的程序编译过程是一样的，parse阶段主要是解析stp代码，生成AST树（抽象语法树，Abstract Syntax Tree），检查语法错误。</p>
 <h2 id="Elaborate（语义分析）"><a href="#Elaborate（语义分析）" class="headerlink" title="Elaborate（语义分析）"></a>Elaborate（语义分析）</h2><p>elaborate阶段对生成的这颗AST树进行修剪，其中又包括很多小阶段。每个小阶段都会遍历整棵树，处理每个节点。主要包括stp语言宏的展开，查找stp函数的定义，匹配stp变量类型，<strong>debuginfo相关操作</strong>，符号解析，优化器等等(可以通过选项-u跳过优化阶段)。</p>
-<p>这一阶段会用到systemtap的tapset（模块集合），路径是<code>/usr/local/share/systemtap/tapset</code>，所以这个路径里的函数可以直接拿来用。tapset包含了很多systemtap预定义的事件或函数，比如通用的查询表，受限内存管理，I/O操作等等。虽然也是stp文件，但只能作为库使用，不能直接运行。也会查找debuginfo中对应函数/变量/路径等的偏移地址。</p>
+<p>这一阶段会用到systemtap的tapset（模块集合），路径是<code>/usr/local/share/systemtap/tapset</code>，所以这个路径里的函数可以直接拿来用。tapset包含了很多systemtap预定义的事件或函数，比如通用的查询表，受限内存管理，I/O操作等等。虽然也是stp文件，但只能作为库使用，不能直接运行。这一步会查找debuginfo中对应函数/变量/路径等的偏移地址。</p>
 <h2 id="Translate（生成C代码）"><a href="#Translate（生成C代码）" class="headerlink" title="Translate（生成C代码）"></a>Translate（生成C代码）</h2><p>我们使用以下代码，来简单看一下stp编译后的C代码是怎样的。</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">global</span> g_s</span><br><span class="line">probe begin &#123;</span><br><span class="line">    a=<span class="number">1</span></span><br><span class="line">    printf(<span class="string">&quot;Hi %d&quot;</span>, a)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe oneshot &#123;</span><br><span class="line">    printf(<span class="string">&quot;I&#x27;m in&quot;</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe timer.ms(<span class="number">100</span>) &#123;</span><br><span class="line">    printf(<span class="string">&quot;timer&quot;</span>)</span><br><span class="line">    exit()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe end &#123;</span><br><span class="line">    g_s = <span class="string">&quot;now&quot;</span></span><br><span class="line">    printf(<span class="string">&quot;end %s&quot;</span>, g_s)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe process(<span class="string">&quot;/lib64/libc.so.6&quot;</span>).function(<span class="string">&quot;gethostbyname&quot;</span>).<span class="keyword">return</span> &#123;</span><br><span class="line">    printf(<span class="string">&quot;uprobe_gethostbyname&quot;</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
@@ -282,7 +282,7 @@
 
 <p>这里有一个<code>.offset=(loff_t)0x119230ULL</code>的值，就是<code>gethostbyname</code>函数在process<code>/lib64/libc.so.6</code>（实际指向<code>/usr/lib64/libc-2.17.so</code>）中的偏移。可以通过命令<code>readelf -f /usr/lib64/libc-2.17.so | grep gethostbyname</code> 查看。这也是编译期间为什么需要debuginfo，这样才可以找到函数对应的偏移地址，然后加上库的基地址，就是实际运行地址了。</p>
 <p>systemtap会检查已存在以及新创建的进程，如果有匹配某个probe，则会通过内核API注册对应的probe，然后内核触发回调时，就会执行这个函数。所以，每个匹配的进程都会执行probe。</p>
-<p>如果需要指定进程的话，可以使用-x PID（会赋值给 target() ），或者-c CMD（新建子进程作为target()）：</p>
+<p>如果需要指定进程的话，可以使用-x PID（会赋值给 <em>target()</em> ），或者-c CMD（新建子进程作为*target()*）：</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">_target = target()</span><br><span class="line"><span class="keyword">if</span> (pid() != _target) &#123;</span><br><span class="line">    next</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <h2 id="Build（编译成内核模块-ko）"><a href="#Build（编译成内核模块-ko）" class="headerlink" title="Build（编译成内核模块.ko）"></a>Build（编译成内核模块.ko）</h2><p>前面三个阶段已经生成了c文件，但其中有关于tapset的函数只是做了简单的链接（函数路径），比如：</p>
@@ -291,17 +291,19 @@
 <p>在这个阶段，会将这部分一起编译到最终的内核模块里。</p>
 <h2 id="Load-Run（加载运行）"><a href="#Load-Run（加载运行）" class="headerlink" title="Load/Run（加载运行）"></a>Load/Run（加载运行）</h2><p>这部分是通过独立的二进制文件staprun实现的，这可以将编译跟运行环境分开。在<code>staprun/staprun_funcs.c</code>文件中，<code>insert_module</code>函数通过调用系统API<code>init_module</code>，来加载内核模块。</p>
 <p>内核模块探测点的处理函数被封装成接口函数，底层调用Linux提供的kprobe接口函数来注册探测点。静态指针使用tracepoints，动态指针使用kprobe，用户态使用uprobes。</p>
-<p>Kprobes是kernel probes，主要有三类，kprobe、kreprobe、jprobe（最新的内核中已经被去掉了）。kprobe是最常使用的，可以在任何指令位置处插入探针。kretprobe可以查看函数执行结束后的参数变化，jprobe在函数进入时使用，类似于kprobe的pre_hanlder。</p>
+<blockquote>
+<p>Kprobes，kernel probes，是linux内核的一个重要特性，也是一个轻量级的内核调试工具。perf、systemtap以及4.x之后出现的eBPF都是基于kprobes之上的。它主要有三类，kprobe、kreprobe、jprobe（最新的内核中已经被去掉了）。kprobe是最常使用的，可以在任何指令位置处插入探针。kretprobe可以查看函数执行结束后的参数变化，jprobe在函数进入时使用，类似于kprobe的pre_hanlder。</p>
 <p>kretprobe用trampoline地址替换堆栈上的返回地址。因此当对应函数返回时，会先执行kretprobe设置的trampoline，然后再从trampoline返回到原来的返回地址。</p>
+</blockquote>
 <p>kprobe的运行原理跟GDB很类似，也是基于中断处理的。系统初始化的时候会注册中断处理，在x86系统上分别是<code>int 1</code>和<code>int 3</code>两个trap，对应的函数是<code>do_debug</code>以及<code>do_int3</code>。 在arm64中是BRK（异常处理）指令。</p>
 <p><img src="/images/2020-12-07-Linux-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95-%E4%B9%8B-SystemTap%EF%BC%88%E5%8E%9F%E7%90%86%E7%AF%87%EF%BC%89/kprobe.png"></p>
 <p>kprobe的运行流程：</p>
-<ul>
+<ol>
 <li>注册kprobe。一个kprobe结构体对应一个探针，包含有插入点地址，以及保存该插入点的原始指令original_opcode</li>
 <li>替换原有指令。将插入点的指令替换为0xcc(int 3, ARM替换为BRK)。这样当CPU执行到该位置时，就会触发int 3或异常处理。</li>
 <li>进入异常态执行pre_handler。找到该位置信息对应的kprobe，执行pre_handler。并将相应寄存器设置成单步调试single-step，将下一条指令设置为original_opcode，然后从异常态返回。</li>
 <li>再次陷入异常态执行post_handler。因为在上一步将下一条即将执行的指令设置为了original_opcode，且设置了single-step。因此从int 3返回后会立即执行原有指令，紧接着触发int 1(single-step)，再次进入异常态。这时首先清除single-step相关的寄存器tag，然后执行kprobe的post_handler，最后从异常态安全返回。</li>
-</ul>
+</ol>
 <p>以上就是kprobe执行过程，就是将原有的一条指令扩展成为<strong>执行pre_handler-&gt;执行原有指令-&gt;执行post_handler</strong>。</p>
 <p>systemtap就是调用的kprobe接口函数来注册stp脚本中定义的探测点。当内核运行到探测点时，就会调用对应的处理函数，其中的输出语句将会通过调用<code>relayfs</code>的接口函数输出数据，也就是下一步的通讯过程。</p>
 <h2 id="Store-Output（用户态-内核态交互，通讯）"><a href="#Store-Output（用户态-内核态交互，通讯）" class="headerlink" title="Store Output（用户态/内核态交互，通讯）"></a>Store Output（用户态/内核态交互，通讯）</h2><p>staprun加载内核模块之后，会exec一个stapio进程（<code>/usr/libexec/systemtap/</code>），跟加载后的内核模块通讯。内核模块会通过<code>debugfs_create_dir</code>和<code>debugfs_create_file</code>两个api创建一个<code>debugfs</code>下的“伪文件”。用户态程序可以通过读写这些“伪文件”来调用内核模块的制定函数。内核模块会创建<code>/sys/kernel/debug/systemtap/$module_name/trace%d</code>这样的文件用于数据流的传输。</p>
